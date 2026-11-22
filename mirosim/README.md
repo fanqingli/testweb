@@ -68,7 +68,7 @@ python tools/derive_behavior.py examples/personas/p_0a31f7.json --power-gap 0.8
 
 ```bash
 pip install -e ".[dev]"
-pytest                                   # 12 项
+pytest
 
 python -m mirosim.cli run-panel --experiment examples/experiment.policy.yaml \
     --personas examples/personas --out runs/demo
