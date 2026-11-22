@@ -1,0 +1,30 @@
+{
+  "response_id": "r_x_delivery_limit_panel_01_B_1_p_0a31f7",
+  "run_id": "run_x_delivery_limit_panel_01_B_r1_fam1",
+  "persona_id": "p_0a31f7",
+  "persona_version": 2,
+  "variant_id": "B",
+  "replicate": 1,
+  "exposure": {"exposed": true, "channel": null, "draw": 0.0},
+  "call_id": "c_9f2e41aa",
+  "valid": true,
+  "invalid_reason": null,
+  "payload": {
+    "noticed": true,
+    "takeaway": "半年后平台不能再把时间卡那么死，下雨天超时不罚，罚了可以找外面的机构申诉。",
+    "inner_reaction": "又是申诉。上回申诉三次没人理。半年，够平台想出新法子把钱扣回去了。",
+    "answers": {
+      "pol_impact": 1,
+      "pol_fair": 4,
+      "pol_stance": "conditional",
+      "pol_condition": "申诉得有时限，几天内必须给答复",
+      "pol_trust_exec": 2,
+      "pol_worry": "时限放宽了，单价跟着降",
+      "pol_info_need": "第三方机构是谁，归谁管"
+    },
+    "behavior": "wait",
+    "reasons": ["下雨不罚是实在的", "申诉以前没用过成", "怕平台从别处扣回来"],
+    "share": {"would_share": true, "to_whom": "站里同行群", "what": "说是下雨超时以后不罚了，半年后才算数"},
+    "quote": "规定是好规定，就看到时候认不认。半年呢，先跑着看。"
+  }
+}

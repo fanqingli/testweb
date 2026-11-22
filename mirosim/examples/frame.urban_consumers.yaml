@@ -1,0 +1,36 @@
+# 营销/品牌包人群框架示例：新茶饮的城市消费者
+frame_id: f_urban_tea_consumers
+universe: "一二线城市 18–45 岁、过去三个月买过现制饮品的人"
+share_basis: "配置人估计，仅作示例。正式实验须替换为品牌自有用户画像或第三方调研口径。"
+segments:
+  - segment_id: student
+    label: "在校学生"
+    filter: {"identity.occupation.employment_type": ["student"]}
+    share: 0.18
+    n: 50
+  - segment_id: young_worker
+    label: "入职五年内的上班族"
+    filter: {"identity.occupation.employment_type": ["employee"], "identity.birth_year": [1998, 1999, 2000, 2001, 2002, 2003]}
+    share: 0.34
+    n: 90
+  - segment_id: senior_worker
+    label: "三十岁以上的上班族"
+    filter: {"identity.occupation.employment_type": ["employee"], "identity.birth_year": [1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996]}
+    share: 0.28
+    n: 70
+  - segment_id: parent
+    label: "有孩子、替家人下单的人"
+    filter: {"situation.consumption.decision_role": ["decider"], "identity.household.children": [1, 2, 3]}
+    share: 0.12
+    n: 50
+  - segment_id: flexible
+    label: "自由职业与灵活就业者"
+    filter: {"identity.occupation.employment_type": ["self_employed", "gig"]}
+    share: 0.08
+    n: 40
+diversity:
+  spread_fields: ["identity.gender", "identity.region_tier", "identity.income_band", "psyche.mbti.type", "psyche.traits.price_sensitivity"]
+  min_stance_spread_per_segment: 2
+mbti_prior:
+  mode: uniform
+  source: "占位。均匀分布不符合现实，仅用于冒烟测试。"

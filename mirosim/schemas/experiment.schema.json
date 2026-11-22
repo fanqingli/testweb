@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mirosim/experiment.schema.json",
+  "title": "Experiment",
+  "description": "一次平行推演实验的全部配置。运行矩阵 = 版本 × 重复次数（× 模型族）。",
+  "type": "object",
+  "required": [
+    "experiment_id",
+    "pack",
+    "question",
+    "success_criteria",
+    "stimulus",
+    "population",
+    "design",
+    "measures",
+    "models",
+    "memory",
+    "budget",
+    "notice"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "experiment_id": {
+      "type": "string",
+      "pattern": "^x_[0-9a-z_]+$"
+    },
+    "pack": {
+      "enum": [
+        "policy",
+        "marketing",
+        "brand"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "description": "一句可被证伪的话"
+    },
+    "success_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "forbidden_claims": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stimulus": {
+      "type": "string",
+      "description": "stimulus 文件路径或 stimulus_id"
+    },
+    "population": {
+      "type": "object",
+      "required": [
+        "frame",
+        "size"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "frame": {
+          "type": "string",
+          "description": "人群框架文件路径"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reuse_min_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "至少多大比例来自既有档案"
+        },
+        "base_world": {
+          "type": "string"
+        }
+      }
+    },
+    "design": {
+      "type": "object",
+      "required": [
+        "mode",
+        "replicates",
+        "seed"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "panel",
+            "deliberation",
+            "diffusion"
+          ]
+        },
+        "exposure": {
+          "enum": [
+            "forced",
+            "natural"
+          ],
+          "description": "仅 panel/diffusion"
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "缺省为全部"
+        },
+        "replicates": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "model_families": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "用几个不同模型族各跑一遍"
+        },
+        "script": {
+          "type": "string",
+          "description": "仅 deliberation：剧本 id"
+        },
+        "delegates": {
+          "type": "integer",
+          "description": "仅 deliberation：参会人数"
+        },
+        "steps": {
+          "type": "integer",
+          "description": "仅 diffusion：传播步数"
+        },
+        "baseline": {
+          "type": "boolean",
+          "description": "品牌包：是否先做一次不含刺激物的基线调用（版本 BASE），取得事前态度。档案里已有态度的人物跳过。"
+        }
+      }
+    },
+    "measures": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "description": "量表项 id，定义在 config/measures.yaml"
+    },
+    "models": {
+      "type": "object",
+      "required": [
+        "persona_tier",
+        "analysis_tier"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "persona_tier": {
+          "type": "string"
+        },
+        "analysis_tier": {
+          "type": "string"
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2
+        }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "required": [
+        "read",
+        "commit_policy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "read": {
+          "type": "boolean"
+        },
+        "top_k": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "commit_policy": {
+          "enum": [
+            "none",
+            "sandbox"
+          ],
+          "description": "none 不写长期记忆；sandbox 写入本实验的分支世界。写入基线世界只能用 commit 命令显式执行。"
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": [
+        "max_calls"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "max_calls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_input_tokens": {
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "type": "integer"
+        }
+      }
+    },
+    "notice": {
+      "const": "SIMULATION_NOTICE_v1"
+    }
+  }
+}

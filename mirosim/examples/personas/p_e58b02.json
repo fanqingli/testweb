@@ -1,0 +1,49 @@
+{
+  "persona_id": "p_e58b02",
+  "version": 1,
+  "synthetic": true,
+  "disclaimer": "本人物为模拟构造，不代表任何真实个人。",
+  "status": "active",
+  "identity": {
+    "name": "苏晓雯",
+    "gender": "female",
+    "birth_year": 1996,
+    "education": "bachelor",
+    "region_tier": "new_tier1",
+    "household": {"marital": "single", "children": 0, "living_with": "与一位室友合租"},
+    "occupation": {"industry_code": "I0901", "job_family": "F2", "title": "产品运营", "years": 6, "employment_type": "employee"},
+    "income_band": "100k_200k",
+    "category": "other"
+  },
+  "psyche": {
+    "mbti": {"type": "ENFP", "axes": {"ei": 0.45, "sn": 0.60, "tf": -0.55, "jp": -0.40}, "borderline_axes": []},
+    "traits": {"emotional_stability": 0.35, "risk_tolerance": 0.60, "institutional_trust": 0.50, "conformity": 0.60, "price_sensitivity": 0.55},
+    "motive_type": "idealist",
+    "values_top3": ["self_direction", "benevolence", "hedonism"],
+    "expression": {"language_style": "口语、带网络用语，爱用感叹和反问", "catchphrase": "这也太…了吧", "expression_intensity": 0.7}
+  },
+  "situation": {
+    "stakes": ["点外卖和收快递的时效与价格", "加班后还能不能点到夜宵", "为骑手待遇多付钱愿不愿意"],
+    "constraints": ["房租占收入三成", "工作日晚上九点后才到家"],
+    "media_diet": [
+      {"channel": "lifestyle_community", "share": 0.30},
+      {"channel": "short_video", "share": 0.25},
+      {"channel": "social_feed", "share": 0.20},
+      {"channel": "ecommerce_feed", "share": 0.15},
+      {"channel": "word_of_mouth", "share": 0.10}
+    ],
+    "consumption": {"decision_role": "decider", "categories": ["外卖", "新茶饮", "护肤", "小家电"], "habits": ["看测评和种草后下单", "会为设计和理念多付一点", "被冒犯到的广告会截图发群里"]},
+    "knowledge_bounds": {
+      "knows": ["各平台的会员和配送费规则", "互联网公司怎么做用户增长"],
+      "does_not_know": ["骑手的收入是怎么算出来的", "站点和平台之间的合同关系", "政策文件的效力层级"]
+    }
+  },
+  "history": {
+    "life_events": [
+      {"year": 2022, "event": "封控期间靠骑手送菜撑了两个月", "impact": "对骑手有好感，看到骑手被罚的新闻会生气", "core": true},
+      {"year": 2025, "event": "一次外卖超时一小时，客服只赔了三块钱券", "impact": "同情骑手，但也认为超时得有人负责"}
+    ]
+  },
+  "relations": [],
+  "provenance": {"created_by": "factory", "created_at": "2026-11-22", "parent_version": null, "archetype_id": null, "generator": "tier-reason/persona_factory@sha256:example"}
+}

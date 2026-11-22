@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mirosim/persona.schema.json",
+  "title": "PersonaVersion",
+  "description": "人物卡的一个不可变版本。动态记忆与态度不在卡内，见 memory_item / attitude。",
+  "type": "object",
+  "required": ["persona_id", "version", "synthetic", "disclaimer", "status", "identity", "psyche", "situation", "history", "provenance"],
+  "additionalProperties": false,
+  "properties": {
+    "persona_id": {"type": "string", "pattern": "^p_[0-9a-z]{6,}$"},
+    "version": {"type": "integer", "minimum": 1},
+    "synthetic": {"const": true},
+    "disclaimer": {"type": "string", "minLength": 10},
+    "status": {"enum": ["draft", "qualified", "active", "retired"]},
+    "identity": {
+      "type": "object",
+      "required": ["name", "gender", "birth_year", "education", "region_tier", "occupation", "income_band"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "description": "取自合成姓名词表，不得为可识别真人"},
+        "gender": {"enum": ["male", "female", "other"]},
+        "birth_year": {"type": "integer", "minimum": 1930, "maximum": 2020},
+        "education": {"enum": ["primary", "junior_high", "senior_high", "college", "bachelor", "master_plus"]},
+        "region_tier": {"enum": ["tier1", "new_tier1", "tier2", "tier3_below", "county", "rural"], "description": "只到层级，不写真实地名"},
+        "household": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "marital": {"enum": ["single", "married", "divorced", "widowed"]},
+            "children": {"type": "integer", "minimum": 0},
+            "living_with": {"type": "string"}
+          }
+        },
+        "occupation": {
+          "type": "object",
+          "required": ["industry_code", "job_family", "title"],
+          "additionalProperties": false,
+          "properties": {
+            "industry_code": {"type": "string", "pattern": "^I[0-9]{4}$", "description": "沿用 v3.0 §6.2 行业树"},
+            "job_family": {"enum": ["F1", "F2", "F3", "F4", "F5", "F6"], "description": "沿用 v3.0 §6.2.1 岗位族"},
+            "title": {"type": "string"},
+            "years": {"type": "integer", "minimum": 0},
+            "employment_type": {"enum": ["employee", "self_employed", "gig", "owner", "student", "retired", "unemployed", "homemaker"]}
+          }
+        },
+        "income_band": {"enum": ["lt_50k", "50k_100k", "100k_200k", "200k_500k", "gt_500k"], "description": "个人年收入，人民币"},
+        "category": {"enum": ["frontline", "entrepreneur", "expert", "institution", "legal", "media", "other"], "description": "v3.0 的 7 类角色，可选"}
+      }
+    },
+    "psyche": {
+      "type": "object",
+      "required": ["mbti", "traits", "motive_type", "values_top3", "expression"],
+      "additionalProperties": false,
+      "properties": {
+        "mbti": {
+          "type": "object",
+          "required": ["type", "axes"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {"type": "string", "pattern": "^[EI][SN][TF][JP]$"},
+            "axes": {
+              "type": "object",
+              "description": "连续偏好分，-1..1。正向分别指 E / N / T / J。type 由符号决定。",
+              "required": ["ei", "sn", "tf", "jp"],
+              "additionalProperties": false,
+              "properties": {
+                "ei": {"type": "number", "minimum": -1, "maximum": 1},
+                "sn": {"type": "number", "minimum": -1, "maximum": 1},
+                "tf": {"type": "number", "minimum": -1, "maximum": 1},
+                "jp": {"type": "number", "minimum": -1, "maximum": 1}
+              }
+            },
+            "borderline_axes": {"type": "array", "items": {"enum": ["ei", "sn", "tf", "jp"]}, "description": "|分值| < 0.2 的轴"}
+          }
+        },
+        "traits": {
+          "type": "object",
+          "description": "MBTI 不覆盖的补充维度，0..1",
+          "required": ["emotional_stability", "risk_tolerance", "institutional_trust", "conformity", "price_sensitivity"],
+          "additionalProperties": false,
+          "properties": {
+            "emotional_stability": {"type": "number", "minimum": 0, "maximum": 1},
+            "risk_tolerance": {"type": "number", "minimum": 0, "maximum": 1},
+            "institutional_trust": {"type": "number", "minimum": 0, "maximum": 1},
+            "conformity": {"type": "number", "minimum": 0, "maximum": 1},
+            "price_sensitivity": {"type": "number", "minimum": 0, "maximum": 1}
+          }
+        },
+        "motive_type": {"enum": ["self_interest", "rational", "impulsive", "herd", "procedural", "idealist", "cautious", "radical"], "description": "v3.0 §6.1.2 的 8 型，表示核心驱动"},
+        "values_top3": {
+          "type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true,
+          "items": {"enum": ["self_direction", "stimulation", "hedonism", "achievement", "power", "security", "conformity", "tradition", "benevolence", "universalism"]}
+        },
+        "expression": {
+          "type": "object",
+          "required": ["language_style"],
+          "additionalProperties": false,
+          "properties": {
+            "language_style": {"type": "string"},
+            "catchphrase": {"type": "string"},
+            "expression_intensity": {"type": "number", "minimum": 0, "maximum": 1, "description": "含蓄 0 — 外露 1，对应 v3.0 的 expression_intensity/10"}
+          }
+        }
+      }
+    },
+    "situation": {
+      "type": "object",
+      "required": ["stakes", "constraints", "media_diet", "knowledge_bounds"],
+      "additionalProperties": false,
+      "properties": {
+        "stakes": {"type": "array", "minItems": 1, "items": {"type": "string"}, "description": "利益关切"},
+        "constraints": {"type": "array", "items": {"type": "string"}, "description": "现实约束：钱、时间、身份、健康"},
+        "media_diet": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "required": ["channel", "share"], "additionalProperties": false,
+            "properties": {
+              "channel": {"type": "string", "description": "取值见 config/channels.yaml"},
+              "share": {"type": "number", "minimum": 0, "maximum": 1, "description": "占其信息摄入时间的比例，合计 ≤ 1"}
+            }
+          }
+        },
+        "consumption": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "decision_role": {"enum": ["decider", "influencer", "user_only", "none"]},
+            "categories": {"type": "array", "items": {"type": "string"}},
+            "habits": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "knowledge_bounds": {
+          "type": "object", "required": ["knows", "does_not_know"], "additionalProperties": false,
+          "properties": {
+            "knows": {"type": "array", "items": {"type": "string"}},
+            "does_not_know": {"type": "array", "items": {"type": "string"}}
+          }
+        }
+      }
+    },
+    "history": {
+      "type": "object",
+      "required": ["life_events"],
+      "additionalProperties": false,
+      "properties": {
+        "life_events": {
+          "type": "array", "minItems": 2,
+          "items": {
+            "type": "object", "required": ["year", "event", "impact"], "additionalProperties": false,
+            "properties": {
+              "year": {"type": "integer"},
+              "event": {"type": "string"},
+              "impact": {"type": "string"},
+              "core": {"type": "boolean", "description": "true 则每次必注入提示词，最多 3 条"}
+            }
+          }
+        }
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["to", "rtype", "strength"], "additionalProperties": false,
+        "properties": {
+          "to": {"type": "string"},
+          "rtype": {"enum": ["employ", "regulate", "peer", "supply", "media", "kin", "represent", "friend"]},
+          "strength": {"type": "number", "minimum": 0, "maximum": 1}
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["created_by", "created_at"],
+      "additionalProperties": false,
+      "properties": {
+        "created_by": {"enum": ["factory", "manual", "interview_derived"]},
+        "created_at": {"type": "string", "format": "date"},
+        "parent_version": {"type": ["integer", "null"]},
+        "archetype_id": {"type": ["string", "null"]},
+        "generator": {"type": "string", "description": "生成用的档位与提示词 hash"},
+        "change_note": {"type": "string"}
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "trait_recovery": {"type": "number", "minimum": 0, "maximum": 1},
+        "retest_consistency": {"type": "number", "minimum": 0, "maximum": 1},
+        "distinctiveness": {"type": "number", "minimum": 0, "maximum": 1},
+        "checked_at": {"type": "string", "format": "date"}
+      }
+    }
+  }
+}

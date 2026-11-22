@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mirosim/response.schema.json",
+  "title": "PanelResponse",
+  "description": "群体反应模式下，一个人物在一个平行世界里对一个方案版本的一次反应。payload 是模型输出契约。",
+  "type": "object",
+  "required": ["response_id", "run_id", "persona_id", "persona_version", "variant_id", "replicate", "exposure", "valid"],
+  "additionalProperties": false,
+  "properties": {
+    "response_id": {"type": "string"},
+    "run_id": {"type": "string"},
+    "persona_id": {"type": "string"},
+    "persona_version": {"type": "integer"},
+    "variant_id": {"type": "string"},
+    "replicate": {"type": "integer", "minimum": 1},
+    "exposure": {
+      "type": "object", "required": ["exposed"], "additionalProperties": false,
+      "properties": {
+        "exposed": {"type": "boolean"},
+        "channel": {"type": ["string", "null"]},
+        "draw": {"type": "number", "description": "代码抽取的随机数，可复算"}
+      }
+    },
+    "call_id": {"type": ["string", "null"], "description": "llm_calls 表主键；未曝光则为空"},
+    "valid": {"type": "boolean"},
+    "invalid_reason": {"type": ["string", "null"]},
+    "payload": {
+      "type": "object",
+      "required": ["noticed", "takeaway", "inner_reaction", "answers", "behavior", "reasons", "share", "quote"],
+      "additionalProperties": false,
+      "properties": {
+        "noticed": {"type": "boolean", "description": "看到了是否会停下来看完"},
+        "takeaway": {"type": "string", "maxLength": 120, "description": "用自己的话复述这件事在说什么；noticed=false 时可为空串"},
+        "inner_reaction": {"type": "string", "maxLength": 200, "description": "不对外说的第一反应"},
+        "answers": {
+          "type": "object",
+          "description": "键为量表项 id；值为整数量表分、枚举值，或 \"dk\"（不知道/没想法）",
+          "additionalProperties": {"type": ["integer", "string"]}
+        },
+        "behavior": {"type": "string", "description": "行为选项枚举值，必含 none（什么都不做）"},
+        "reasons": {"type": "array", "maxItems": 3, "items": {"type": "string", "maxLength": 80}},
+        "share": {
+          "type": "object", "required": ["would_share"], "additionalProperties": false,
+          "properties": {
+            "would_share": {"type": "boolean"},
+            "to_whom": {"type": "string"},
+            "what": {"type": "string", "maxLength": 100}
+          }
+        },
+        "quote": {"type": "string", "maxLength": 150, "description": "如果有人问起，他会怎么说（公开表态，口语）"}
+      }
+    }
+  }
+}

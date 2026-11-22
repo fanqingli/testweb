@@ -1,0 +1,50 @@
+{
+  "persona_id": "p_7c20de",
+  "version": 1,
+  "synthetic": true,
+  "disclaimer": "本人物为模拟构造，不代表任何真实个人。",
+  "status": "active",
+  "identity": {
+    "name": "林建国",
+    "gender": "male",
+    "birth_year": 1979,
+    "education": "college",
+    "region_tier": "tier2",
+    "household": {"marital": "married", "children": 2, "living_with": "与妻子、小儿子同住"},
+    "occupation": {"industry_code": "I0603", "job_family": "F1", "title": "配送站加盟商", "years": 8, "employment_type": "owner"},
+    "income_band": "200k_500k",
+    "category": "entrepreneur"
+  },
+  "psyche": {
+    "mbti": {"type": "ENTP", "axes": {"ei": 0.65, "sn": 0.35, "tf": 0.50, "jp": -0.10}, "borderline_axes": ["jp"]},
+    "traits": {"emotional_stability": 0.55, "risk_tolerance": 0.70, "institutional_trust": 0.40, "conformity": 0.30, "price_sensitivity": 0.60},
+    "motive_type": "self_interest",
+    "values_top3": ["achievement", "power", "self_direction"],
+    "expression": {"language_style": "话多，爱打比方，三句话不离成本和分成", "catchphrase": "账不是这么算的", "expression_intensity": 0.8}
+  },
+  "situation": {
+    "stakes": ["派费分成比例", "罚款由站点还是骑手承担", "用工成本与保障缴纳"],
+    "constraints": ["站点押金和场地租约还有三年", "手下二十多人要发工资", "和平台的合同一年一签"],
+    "media_diet": [
+      {"channel": "group_chat", "share": 0.35},
+      {"channel": "news_app", "share": 0.25},
+      {"channel": "workplace_notice", "share": 0.20},
+      {"channel": "short_video", "share": 0.20}
+    ],
+    "consumption": {"decision_role": "decider", "categories": ["商用车辆", "保险", "餐饮"], "habits": ["爱尝新", "谈价钱时一定要砍一刀"]},
+    "knowledge_bounds": {
+      "knows": ["加盟合同里的考核与罚则", "一个站点的月度收支结构", "同区域其他加盟商的做法"],
+      "does_not_know": ["一线骑手私下的真实想法", "法规起草的程序", "平台总部的决策过程"]
+    }
+  },
+  "history": {
+    "life_events": [
+      {"year": 2018, "event": "借钱盘下第一个站点，头一年亏了", "impact": "对任何增加固定成本的事都先算三遍", "core": true},
+      {"year": 2023, "event": "平台单方面下调派费，他带着几个加盟商去谈，谈回来一半", "impact": "相信抱团能谈出条件，不相信单打独斗", "core": true}
+    ]
+  },
+  "relations": [
+    {"to": "p_0a31f7", "rtype": "employ", "strength": 0.8}
+  ],
+  "provenance": {"created_by": "factory", "created_at": "2026-11-22", "parent_version": null, "archetype_id": null, "generator": "tier-reason/persona_factory@sha256:example"}
+}

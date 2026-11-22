@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mirosim/memory_item.schema.json",
+  "title": "MemoryItem",
+  "description": "长期档案中的一条记忆。只追加，不修改；更正用 supersedes。",
+  "type": "object",
+  "required": ["memory_id", "persona_id", "world_id", "seq", "kind", "occurred_on", "content", "valence", "importance", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "memory_id": {"type": "string", "pattern": "^m_[0-9a-z]{8,}$"},
+    "persona_id": {"type": "string"},
+    "world_id": {"type": "string", "description": "所属世界线；分支世界通过 fork_seq 继承父世界记忆"},
+    "seq": {"type": "integer", "minimum": 1, "description": "全库单调递增序号，用于分支可见性判断"},
+    "kind": {"enum": ["world_event", "interaction", "experience", "reflection"], "description": "world_event 外部发生的事；interaction 与他人的交流；experience 自己的使用/办事经历；reflection 由多条记忆归纳的看法"},
+    "occurred_on": {"type": "string", "format": "date", "description": "世界时钟日期"},
+    "content": {"type": "string", "maxLength": 300, "description": "第一人称，一两句话"},
+    "valence": {"type": "integer", "minimum": -2, "maximum": 2},
+    "importance": {"type": "integer", "minimum": 1, "maximum": 10},
+    "objects": {"type": "array", "items": {"type": "string", "pattern": "^(topic|brand|org|policy|product|person):.+$"}},
+    "source": {
+      "type": "object", "required": ["type"], "additionalProperties": false,
+      "properties": {
+        "type": {"enum": ["authored", "committed_run", "reflection"]},
+        "run_id": {"type": "string"},
+        "response_id": {"type": "string"},
+        "derived_from": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "supersedes": {"type": ["string", "null"]}
+  }
+}

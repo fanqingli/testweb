@@ -1,0 +1,27 @@
+# 模型档位注册表。代码与提示词只认档位；具体模型在这里映射，换模型只改此文件。
+# 档位定义沿用 v3.0 §9.1。model_id 留空：实施时按当期可用模型与报价填写，并先跑 docs/05 的换模型对比。
+version: 1
+tiers:
+  tier-economy:
+    use_for: "群体反应模式的大批量人物调用；备用档"
+    primary:  {provider: "", model_id: "", base_url: "", supports_json_mode: null, supports_seed: null}
+    fallback: {provider: "", model_id: "", base_url: ""}
+    params:   {temperature: 0.9, top_p: 0.95, max_output_tokens: 600}
+  tier-balanced:
+    use_for: "研讨模式的普通人物"
+    primary:  {provider: "", model_id: "", base_url: ""}
+    fallback: {provider: "", model_id: "", base_url: ""}
+    params:   {temperature: 0.8, top_p: 0.95, max_output_tokens: 500}
+  tier-reason:
+    use_for: "研讨模式的专家/法律人物；分析、编码、报告"
+    primary:  {provider: "", model_id: "", base_url: ""}
+    fallback: {provider: "", model_id: "", base_url: ""}
+    params:   {temperature: 0.2, top_p: 0.9, max_output_tokens: 2000}
+rules:
+  same_tier_same_model_within_experiment: true   # 同一实验内，同档位只用一个具体模型
+  max_downgrade_steps: 1                         # 失败降级最多一级
+  analysis_model_differs_from_persona_model: true # 做分析的模型族尽量不同于扮演人物的模型族，减少自评偏差
+price_table:      # 每百万 token 单价，实施时填；用于预算估算与 manifest.usage.cost
+  tier-economy:  {input: null, output: null, cached_input: null}
+  tier-balanced: {input: null, output: null, cached_input: null}
+  tier-reason:   {input: null, output: null, cached_input: null}

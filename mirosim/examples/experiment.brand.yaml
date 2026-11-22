@@ -1,0 +1,28 @@
+experiment_id: x_tea_crisis_timeline_01
+pack: brand
+question: "三种回应声明中，哪一种在声明发出两周后留下的好感损失最小"
+success_criteria:
+  - "三版声明在发出当天与两周后的好感变化，按分群列出"
+  - "列出每版声明引发的主要负面解读及其在人群中的扩散路径"
+forbidden_claims:
+  - "预测销量损失的具体数值"
+stimulus: examples/stimulus.brand.yaml
+population:
+  frame: examples/frame.urban_consumers.yaml
+  size: 300
+  reuse_min_ratio: 0.3
+  base_world: w_base
+design:
+  mode: diffusion
+  exposure: natural
+  replicates: 3
+  seed: 20261124
+  steps: 4
+  baseline: true
+measures: [brd_assoc, brd_favor_post, brd_believe, brd_sincere, brd_blame]
+models:
+  persona_tier: tier-economy
+  analysis_tier: tier-reason
+memory: {read: true, top_k: 5, commit_policy: sandbox}
+budget: {max_calls: 15000}
+notice: SIMULATION_NOTICE_v1
