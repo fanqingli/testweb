@@ -93,8 +93,12 @@ def main() -> int:
                 target = by_id.get(v.get("placebo_of"))
                 if target is None:
                     fail(path, f"{v['variant_id']}: placebo_of 指向不存在的版本")
-                elif target["content"] != v["content"]:
-                    fail(path, f"{v['variant_id']}: 安慰剂内容必须与 {target['variant_id']} 完全相同")
+                elif target["content"] != v["content"] or target.get("renderings") != v.get("renderings"):
+                    fail(path, f"{v['variant_id']}: 安慰剂的 content 与 renderings 必须与 {target['variant_id']} 完全相同")
+        for v in s["variants"]:
+            for ch in v.get("renderings", {}):
+                if ch not in channels:
+                    fail(path, f"{v['variant_id']}: renderings 含未知渠道 {ch}")
         for c in s["context"].get("channel_plan", []):
             if c["channel"] not in channels:
                 fail(path, f"未知渠道 {c['channel']}")
