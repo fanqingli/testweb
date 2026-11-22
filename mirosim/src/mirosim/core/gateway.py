@@ -62,8 +62,8 @@ class Gateway:
             return CallResult(key, self._recorded[key], True)
         if self.replay:
             raise ReplayMiss(f"{run_id} #{ordinal}")
-        if self.max_calls is not None and self.live_calls >= self.max_calls:
-            raise BudgetExceeded(f"已发出 {self.live_calls} 次调用，预算 {self.max_calls}")
+        if self.max_calls is not None and len(self._recorded) >= self.max_calls:  # 录制里已有的调用也算
+            raise BudgetExceeded(f"录制里已有 {len(self._recorded)} 次调用，预算 {self.max_calls}")
         text = self.backend.complete(system, user, seed=seed)
         self.live_calls += 1
         rec = {"call_key": key, "run_id": run_id, "purpose": purpose, "model_id": self.backend.model_id,

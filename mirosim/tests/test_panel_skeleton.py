@@ -121,7 +121,10 @@ def test_budget_stops_live_calls(tmp_path):
 def test_interrupted_run_resumes_from_recording(tmp_path):
     with pytest.raises(BudgetExceeded):
         run(POLICY, tmp_path, max_calls=10)
-    _, gateway = run(POLICY, tmp_path)
+    with pytest.raises(BudgetExceeded):  # 续跑不会重新得到一份预算
+        run(POLICY, tmp_path, max_calls=10)
+    assert len((tmp_path / "recording.jsonl").read_text(encoding="utf-8").splitlines()) == 10
+    _, gateway = run(POLICY, tmp_path, max_calls=45)
     assert gateway.live_calls == 35
 
 
