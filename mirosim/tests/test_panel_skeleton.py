@@ -148,3 +148,11 @@ def test_contrast_table_separates_effects_from_noise_floor(tmp_path):
     assert table["baseline"] == "S0"
     assert [e["variant"] for e in table["effects"]] == ["A", "B", "C"]
     assert [(n["variant"], n["baseline"]) for n in table["noise_floor"]] == [("B_PLACEBO", "B")]
+
+
+def test_changed_seed_does_not_reuse_recorded_answers(tmp_path):
+    run(POLICY, tmp_path)
+    reseeded = tmp_path / "experiment.yaml"
+    reseeded.write_text(POLICY.read_text(encoding="utf-8").replace("seed: 20261122", "seed: 7"), encoding="utf-8")
+    _, gateway = run(reseeded, tmp_path)
+    assert gateway.live_calls == 45

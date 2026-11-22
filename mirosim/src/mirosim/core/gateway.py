@@ -33,10 +33,11 @@ class CallResult:
     from_recording: bool
 
 
-def call_key(*, run_id: str, purpose: str, model_id: str, params: dict, system: str, user: str, ordinal: int) -> str:
+def call_key(*, run_id: str, purpose: str, model_id: str, params: dict, system: str, user: str,
+             ordinal: int, seed: int) -> str:
     """run_id 在键里：安慰剂与其对应版本、同一版本的各次重复，提示词逐字相同，
     但必须是各自独立的调用，否则噪声底恒为零。"""
-    blob = json.dumps([run_id, purpose, model_id, params, system, user, ordinal], ensure_ascii=False, sort_keys=True)
+    blob = json.dumps([run_id, purpose, model_id, params, seed, system, user, ordinal], ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(blob.encode()).hexdigest()
 
 
@@ -56,7 +57,7 @@ class Gateway:
 
     def call(self, *, system: str, user: str, purpose: str, run_id: str, ordinal: int = 0, seed: int = 0) -> CallResult:
         key = call_key(run_id=run_id, purpose=purpose, model_id=self.backend.model_id, params=self.params,
-                       system=system, user=user, ordinal=ordinal)
+                       system=system, user=user, ordinal=ordinal, seed=seed)
         if key in self._recorded:
             return CallResult(key, self._recorded[key], True)
         if self.replay:
@@ -66,7 +67,7 @@ class Gateway:
         text = self.backend.complete(system, user, seed=seed)
         self.live_calls += 1
         rec = {"call_key": key, "run_id": run_id, "purpose": purpose, "model_id": self.backend.model_id,
-               "params": self.params, "ordinal": ordinal, "request": {"system": system, "user": user}, "response": text}
+               "params": self.params, "seed": seed, "ordinal": ordinal, "request": {"system": system, "user": user}, "response": text}
         self.recording.parent.mkdir(parents=True, exist_ok=True)
         with self.recording.open("a", encoding="utf-8") as f:  # 写入成功后才把结果交给调用方
             f.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
