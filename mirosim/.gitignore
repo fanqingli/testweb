@@ -6,3 +6,5 @@ data/
 *.db-wal
 *.db-shm
 runs/
+*.egg-info/
+.pytest_cache/
