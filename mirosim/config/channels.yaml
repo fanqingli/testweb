@@ -1,0 +1,17 @@
+# 信息渠道枚举。人物卡 media_diet 与 stimulus.channel_plan 共用。
+version: 1
+channels:
+  short_video:        "短视频平台"
+  social_feed:        "熟人社交动态"
+  group_chat:         "微信群等群聊"
+  lifestyle_community: "种草/生活方式社区"
+  microblog:          "微博类公共广场"
+  news_app:           "新闻资讯客户端"
+  tv_radio:           "电视与广播"
+  search:             "搜索"
+  ecommerce_feed:     "电商平台内推荐"
+  offline_store:      "线下门店与导购"
+  outdoor:            "户外与电梯广告"
+  community_notice:   "社区/物业/村委通知"
+  workplace_notice:   "单位、平台或行业协会通知"
+  word_of_mouth:      "亲友同事当面说"

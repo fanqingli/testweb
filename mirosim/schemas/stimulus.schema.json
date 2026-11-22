@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mirosim/stimulus.schema.json",
+  "title": "Stimulus",
+  "description": "一项干预及其若干方案版本。每个平行世界投放其中一个版本。",
+  "type": "object",
+  "required": [
+    "stimulus_id",
+    "pack",
+    "title",
+    "context",
+    "variants"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "stimulus_id": {
+      "type": "string",
+      "pattern": "^s_[0-9a-z_]+$"
+    },
+    "pack": {
+      "enum": [
+        "policy",
+        "marketing",
+        "brand"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "context": {
+      "type": "object",
+      "required": [
+        "background",
+        "as_of_date"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "type": "string",
+          "description": "所有版本共享的背景，人物在看到方案前已知的情况"
+        },
+        "as_of_date": {
+          "type": "string",
+          "format": "date",
+          "description": "世界时钟：人物只知道此日期之前的事"
+        },
+        "channel_plan": {
+          "type": "array",
+          "description": "自然曝光模式下的投放渠道。reach 为该渠道用户中被触达的比例。",
+          "items": {
+            "type": "object",
+            "required": [
+              "channel",
+              "reach"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "channel": {
+                "type": "string"
+              },
+              "reach": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "variants": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "variant_id",
+          "label",
+          "role",
+          "content"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "variant_id": {
+            "type": "string",
+            "pattern": "^[A-Z][0-9A-Z_]*$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "candidate",
+              "status_quo",
+              "placebo",
+              "negative_control"
+            ],
+            "description": "status_quo 不做任何改变；placebo 与某候选完全相同，用于测假阳性；negative_control 明显更差，用于测讨好偏差"
+          },
+          "content": {
+            "type": "string",
+            "description": "人物实际看到的文字：条款、文案、声明"
+          },
+          "attributes": {
+            "type": "object",
+            "description": "结构化属性，供分析用，如价格、过渡期月数",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          },
+          "placebo_of": {
+            "type": "string"
+          },
+          "renderings": {
+            "type": "object",
+            "description": "按渠道给出的呈现方式（要点相同、写法不同）。键为 config/channels.yaml 中的渠道 id；人物从哪个渠道看到，就给哪一段；缺省用 content。",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "kind": {
+      "type": "string",
+      "description": "包内子类型，如 policy: clause | subsidy；marketing: copy | pricing | promo；brand: positioning | naming | crisis_response"
+    }
+  }
+}

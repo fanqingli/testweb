@@ -1,0 +1,34 @@
+stimulus_id: s_tea_launch_copy
+pack: marketing
+kind: copy
+title: "某新茶饮品牌低糖系列上市文案与定价"
+context:
+  background: "一个中等价位的连锁茶饮品牌（下称「该品牌」）将推出低糖系列。人物此前对该品牌的印象取自其长期档案；档案里没有的，视为听说过但没喝过。"
+  as_of_date: "2026-11-22"
+  channel_plan:
+    - {channel: short_video, reach: 0.35}
+    - {channel: lifestyle_community, reach: 0.30}
+    - {channel: outdoor, reach: 0.25}
+    - {channel: ecommerce_feed, reach: 0.20}
+    - {channel: offline_store, reach: 0.15}
+variants:
+  - variant_id: A
+    label: "功能诉求 + 19 元"
+    role: candidate
+    content: "【新品】低糖鲜果茶，每杯糖含量不到同类一半，配料表只有五样。中杯 19 元。"
+    attributes: {price: 19, appeal: "functional"}
+  - variant_id: B
+    label: "情绪诉求 + 19 元"
+    role: candidate
+    content: "【新品】下午三点，给自己一杯不用有负担的甜。低糖鲜果茶，中杯 19 元。"
+    attributes: {price: 19, appeal: "emotional"}
+  - variant_id: C
+    label: "功能诉求 + 23 元"
+    role: candidate
+    content: "【新品】低糖鲜果茶，每杯糖含量不到同类一半，配料表只有五样。中杯 23 元。"
+    attributes: {price: 23, appeal: "functional"}
+  - variant_id: NEG
+    label: "负对照：空泛文案 + 29 元"
+    role: negative_control
+    content: "【新品】全新升级，品质之选，引领健康新潮流。中杯 29 元。"
+    attributes: {price: 29, appeal: "none"}

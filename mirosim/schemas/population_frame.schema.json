@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mirosim/population_frame.schema.json",
+  "title": "PopulationFrame",
+  "description": "人群框架：这批虚拟人代表现实中的谁、各分群占多大比例、各抽多少人。",
+  "type": "object",
+  "required": ["frame_id", "universe", "share_basis", "segments", "diversity", "mbti_prior"],
+  "additionalProperties": false,
+  "properties": {
+    "frame_id": {"type": "string", "pattern": "^f_[0-9a-z_]+$"},
+    "universe": {"type": "string", "description": "代表的现实人群，一句话"},
+    "share_basis": {"type": "string", "description": "各分群占比的依据（统计口径、调研来源或'配置人估计'）。必须填写，报告原样引用。"},
+    "segments": {
+      "type": "array", "minItems": 2,
+      "items": {
+        "type": "object", "required": ["segment_id", "label", "filter", "share", "n"], "additionalProperties": false,
+        "properties": {
+          "segment_id": {"type": "string"},
+          "label": {"type": "string"},
+          "filter": {"type": "object", "description": "人物卡字段条件，键为点路径，值为允许取值列表", "additionalProperties": {"type": "array"}},
+          "share": {"type": "number", "minimum": 0, "maximum": 1, "description": "该分群在 universe 中的占比，全体合计为 1"},
+          "n": {"type": "integer", "minimum": 1, "description": "抽取人数。可与 share 不成比例（小群体超额抽样），分析时用 share/(n/N) 加权"},
+          "quadrant": {"enum": ["core", "appease", "inform", "minor"], "description": "政策包：v3.0 §4.3 相关方四象限"},
+          "impact": {
+            "type": "object", "description": "政策包：v3.0 §5.17 影响权重三因子输入", "additionalProperties": false,
+            "required": ["depth", "alternatives", "irreversibility", "basis"],
+            "properties": {
+              "depth": {"type": "integer", "minimum": 1, "maximum": 5},
+              "alternatives": {"type": "integer", "minimum": 0, "maximum": 4},
+              "irreversibility": {"enum": [0.3, 0.6, 1.0]},
+              "basis": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "diversity": {
+      "type": "object", "required": ["spread_fields", "min_stance_spread_per_segment"], "additionalProperties": false,
+      "properties": {
+        "spread_fields": {"type": "array", "items": {"type": "string"}, "description": "分群内需拉开的字段，抽样时做最大化覆盖"},
+        "min_stance_spread_per_segment": {"type": "integer", "minimum": 1, "description": "n≥4 的分群里，初始倾向至少覆盖几档（反脸谱化）"}
+      }
+    },
+    "mbti_prior": {
+      "type": "object", "required": ["mode", "source"], "additionalProperties": false,
+      "properties": {
+        "mode": {"enum": ["uniform", "table"]},
+        "table": {"type": "object", "additionalProperties": {"type": "number"}},
+        "source": {"type": "string", "description": "分布来源。uniform 仅用于冒烟测试，正式实验须给出有出处的分布"}
+      }
+    }
+  }
+}

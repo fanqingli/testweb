@@ -1,0 +1,29 @@
+experiment_id: x_tea_copy_panel_01
+pack: marketing
+question: "功能诉求与情绪诉求哪个更能带来尝试意愿；提价到 23 元会在哪些人群里明显压低意愿"
+success_criteria:
+  - "三版候选在五个分群上的行为选择分布与排序"
+  - "负对照版本的吸引力得分明显低于全部候选，否则判定存在讨好偏差、结论作废"
+  - "列出每版文案被误读的方式及占比"
+forbidden_claims:
+  - "预测销量或转化率的具体数值"
+stimulus: examples/stimulus.marketing.yaml
+population:
+  frame: examples/frame.urban_consumers.yaml
+  size: 300
+  reuse_min_ratio: 0.3
+  base_world: w_base
+design:
+  mode: panel
+  exposure: natural
+  replicates: 3
+  seed: 20261123
+  model_families: 1
+measures: [mkt_appeal, mkt_relevance, mkt_credible, mkt_unique, mkt_price_feel, mkt_objection, mkt_annoy]
+models:
+  persona_tier: tier-economy
+  analysis_tier: tier-reason
+  temperature: 0.9
+memory: {read: true, top_k: 5, commit_policy: none}
+budget: {max_calls: 7500}
+notice: SIMULATION_NOTICE_v1

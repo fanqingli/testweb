@@ -1,0 +1,25 @@
+stimulus_id: s_brand_crisis_reply
+pack: brand
+kind: crisis_response
+title: "某新茶饮品牌门店卫生问题的回应声明"
+context:
+  background: "三天前，网上流传一段视频：该品牌一家加盟店的员工用过期原料制作饮品。视频已有大量转发。品牌尚未回应。"
+  as_of_date: "2026-11-22"
+  channel_plan:
+    - {channel: microblog, reach: 0.5}
+    - {channel: short_video, reach: 0.4}
+    - {channel: news_app, reach: 0.3}
+    - {channel: group_chat, reach: 0.3}
+variants:
+  - variant_id: A
+    label: "道歉 + 具体整改"
+    role: candidate
+    content: "我们核实了：视频属实，责任在我们管理不到位。涉事门店已关停；全国门店从今天起三十天内逐店复查，结果按周公布；凡在该店消费过的顾客凭订单全额退款。"
+  - variant_id: B
+    label: "切割加盟店"
+    role: candidate
+    content: "经查，涉事门店为加盟店，其行为严重违反公司规定，公司已与其解除合作并保留追究责任的权利。公司一贯高度重视食品安全。"
+  - variant_id: C
+    label: "道歉 + 代金券"
+    role: candidate
+    content: "对于给大家带来的不好体验，我们深表歉意。即日起所有会员可领取一张五元代金券，感谢大家一直以来的支持。"

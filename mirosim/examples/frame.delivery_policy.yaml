@@ -1,0 +1,53 @@
+# 政策包人群框架示例：城市配送时限规定的相关方
+frame_id: f_delivery_policy
+universe: "某二线城市内，受配送时限规定直接或间接影响的成年人"
+share_basis: "配置人估计，仅作示例。正式实验须替换为有出处的统计口径，并在报告中原样引用。"
+segments:
+  - segment_id: rider
+    label: "一线配送员"
+    filter: {"identity.occupation.industry_code": ["I0603", "I2002"], "identity.occupation.job_family": ["F2"]}
+    share: 0.04
+    n: 60
+    quadrant: appease
+    impact: {depth: 5, alternatives: 1, irreversibility: 0.6, basis: "收入与人身安全直接受影响；换行成本高"}
+  - segment_id: franchisee
+    label: "站点加盟商与站长"
+    filter: {"identity.occupation.industry_code": ["I0603"], "identity.occupation.job_family": ["F1", "F3"]}
+    share: 0.005
+    n: 30
+    quadrant: core
+    impact: {depth: 4, alternatives: 2, irreversibility: 0.6, basis: "成本结构变化；合同期内难以退出"}
+  - segment_id: merchant
+    label: "依赖配送的餐饮与零售商户"
+    filter: {"identity.occupation.industry_code": ["I0802", "I0803", "I0701"], "identity.occupation.job_family": ["F1", "F3"]}
+    share: 0.03
+    n: 40
+    quadrant: core
+    impact: {depth: 3, alternatives: 2, irreversibility: 0.3, basis: "订单量与配送费受影响，可调价对冲"}
+  - segment_id: consumer_heavy
+    label: "高频下单的消费者"
+    filter: {"identity.occupation.job_family": ["F4", "F2"], "situation.consumption.categories": ["外卖"]}
+    share: 0.30
+    n: 90
+    quadrant: inform
+    impact: {depth: 2, alternatives: 3, irreversibility: 0.3, basis: "等待时间与费用小幅变化，可替代"}
+  - segment_id: consumer_light
+    label: "低频或不下单的居民"
+    filter: {"identity.occupation.job_family": ["F4"]}
+    share: 0.62
+    n: 60
+    quadrant: minor
+    impact: {depth: 1, alternatives: 4, irreversibility: 0.3, basis: "主要是道路安全上的间接受益"}
+  - segment_id: regulator
+    label: "负责落地执行的基层监管人员"
+    filter: {"identity.occupation.industry_code": ["I1702"], "identity.occupation.job_family": ["F5"]}
+    share: 0.005
+    n: 20
+    quadrant: inform
+    impact: {depth: 2, alternatives: 4, irreversibility: 0.3, basis: "承担执行责任，无直接利益"}
+diversity:
+  spread_fields: ["identity.birth_year", "identity.gender", "psyche.mbti.type", "psyche.motive_type"]
+  min_stance_spread_per_segment: 2
+mbti_prior:
+  mode: uniform
+  source: "占位。均匀分布不符合现实，仅用于冒烟测试。"

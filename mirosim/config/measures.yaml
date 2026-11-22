@@ -1,0 +1,62 @@
+# 量表项定义。实验配置里只写 id；提示词与分析都从这里取。改题目要升 version。
+version: 1
+scales:
+  likert5: {min: 1, max: 5, labels: {1: "完全不", 3: "一般", 5: "非常"}}
+  bipolar5: {min: -2, max: 2, labels: {-2: "明显变差", 0: "没影响", 2: "明显变好"}}
+
+# ---------------- 政策包 ----------------
+policy:
+  measures:
+    pol_impact:     {q: "这件事对你自己的生活或生计有多大影响，是变好还是变差？", type: bipolar5, allow_dk: true}
+    pol_fair:       {q: "你觉得这样规定公平吗？", type: likert5, allow_dk: true}
+    pol_stance:     {q: "总的来说你怎么看？", type: enum, options: [support, conditional, oppose, indifferent], allow_dk: true}
+    pol_condition:  {q: "如果要你接受，最需要改哪一点？", type: text, max_chars: 60, ask_if: "pol_stance in [conditional, oppose]"}
+    pol_trust_exec: {q: "你相信它会按写的这样执行吗？", type: likert5, allow_dk: true}
+    pol_worry:      {q: "你最担心的一件事是什么？", type: text, max_chars: 60}
+    pol_info_need:  {q: "你还想知道什么才能拿定主意？", type: text, max_chars: 60}
+  behavior:
+    options:
+      comply:      "照规定办"
+      wait:        "先观望，看别人怎么做、查得严不严"
+      workaround:  "想办法变通或规避"
+      pass_on:     "把成本转给上下游或顾客"
+      exit:        "不干了 / 换地方 / 换行当"
+      voice:       "投诉、反映、找人说理"
+      none:        "跟我没关系，什么都不做"
+
+# ---------------- 营销包 ----------------
+marketing:
+  measures:
+    mkt_appeal:     {q: "它吸引你吗？", type: likert5}
+    mkt_relevance:  {q: "这东西跟你有关系吗，是你用得上的吗？", type: likert5}
+    mkt_credible:   {q: "它说的你信吗？", type: likert5, allow_dk: true}
+    mkt_unique:     {q: "跟你见过的同类比，它有什么不一样吗？", type: likert5, allow_dk: true}
+    mkt_price_feel: {q: "这个价钱你觉得怎样？", type: enum, options: [suspiciously_cheap, good_deal, acceptable, a_bit_high, too_high], allow_dk: true, ask_if: "variant.attributes.price exists"}
+    mkt_objection:  {q: "让你犹豫或者不想要的最大一个原因是什么？", type: text, max_chars: 60}
+    mkt_annoy:      {q: "里面有没有让你反感的地方？有的话是哪句、哪点？", type: text, max_chars: 60}
+  behavior:
+    options:
+      buy_now:     "这几天就买 / 就去试"
+      learn_more:  "点进去看看，或者问问用过的人"
+      wait_deal:   "想要，但等活动或降价"
+      keep_current: "继续用现在的，不换"
+      none:        "划走，不会再想起"
+
+# ---------------- 品牌包 ----------------
+brand:
+  measures:
+    brd_assoc:      {q: "看完后你脑子里冒出来的三个词是什么？", type: words, count: 3}
+    brd_favor_post: {q: "现在你对这个牌子的好感是多少？", type: bipolar5, allow_dk: true, pair_with: prior_attitude}
+    brd_believe:    {q: "它这样说自己，你信吗？", type: likert5, allow_dk: true}
+    brd_distinct:   {q: "它跟同类牌子比，有自己的样子吗？", type: likert5, allow_dk: true}
+    brd_self_fit:   {q: "它像是给你这样的人准备的吗？", type: likert5}
+    brd_sincere:    {q: "（危机回应类）你觉得这个回应有诚意吗？", type: likert5, allow_dk: true, ask_if: "stimulus.kind == crisis_response"}
+    brd_blame:      {q: "（危机回应类）这件事你觉得主要是谁的责任？", type: enum, options: [brand, partner, individual, nobody, unclear], ask_if: "stimulus.kind == crisis_response"}
+  behavior:
+    options:
+      try_or_keep:  "愿意试试 / 继续买"
+      recommend:    "会主动跟人推荐"
+      watch:        "再看看它后面怎么做"
+      switch_away:  "以后不买了，换别家"
+      badmouth:     "会跟人吐槽"
+      none:         "没感觉，不会再想起"

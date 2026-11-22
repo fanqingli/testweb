@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mirosim/run_manifest.schema.json",
+  "title": "RunManifest",
+  "description": "一次实验的运行清单。在 v3.0 §5.19 基础上增加实验矩阵与调用录制指纹。",
+  "type": "object",
+  "required": ["experiment_id", "created_at", "code", "inputs", "matrix", "models", "prompts", "randomness", "recording", "usage", "validity_level", "notice"],
+  "additionalProperties": false,
+  "properties": {
+    "experiment_id": {"type": "string"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "code": {"type": "object", "required": ["git_commit"], "properties": {"git_commit": {"type": "string"}, "package_version": {"type": "string"}}},
+    "inputs": {
+      "type": "object", "required": ["experiment_hash", "stimulus_hash", "population_lock_hash", "config_hashes"],
+      "properties": {
+        "experiment_hash": {"type": "string"},
+        "stimulus_hash": {"type": "string"},
+        "population_lock_hash": {"type": "string", "description": "personas.lock.json 的 hash：人物 id + 版本 + 内容 hash"},
+        "memory_snapshot_seq": {"type": "integer", "description": "运行开始时的记忆序号上界"},
+        "config_hashes": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "matrix": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["run_id", "variant_id", "replicate", "model_family", "status"],
+        "properties": {
+          "run_id": {"type": "string"},
+          "variant_id": {"type": "string"},
+          "replicate": {"type": "integer"},
+          "model_family": {"type": "string"},
+          "status": {"enum": ["pending", "running", "done", "failed", "partial"]}
+        }
+      }
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["tier", "provider", "model_id", "params"],
+        "properties": {
+          "tier": {"type": "string"}, "provider": {"type": "string"}, "model_id": {"type": "string"},
+          "version_string": {"type": "string"}, "params": {"type": "object"}, "seed_supported": {"type": "boolean"}
+        }
+      }
+    },
+    "prompts": {"type": "array", "items": {"type": "object", "required": ["id", "hash"], "properties": {"id": {"type": "string"}, "hash": {"type": "string"}}}},
+    "randomness": {
+      "type": "object", "required": ["seed", "replayable", "rerun_stability"],
+      "properties": {
+        "seed": {"type": "integer"},
+        "replayable": {"type": "boolean", "description": "录制完整则为 true：分析结果可由录制逐字节重算"},
+        "rerun_stability": {"type": ["number", "null"], "description": "重复运行间结论一致率；replicates=1 时为 null"}
+      }
+    },
+    "recording": {"type": "object", "required": ["calls", "hash"], "properties": {"calls": {"type": "integer"}, "hash": {"type": "string"}}},
+    "usage": {"type": "object", "required": ["input_tokens", "output_tokens"], "properties": {"input_tokens": {"type": "integer"}, "output_tokens": {"type": "integer"}, "cache_hits": {"type": "integer"}, "cost": {"type": ["number", "null"]}}},
+    "validity_level": {"enum": ["L0", "L1", "L2", "L3"], "description": "见 docs/05 效度阶梯"},
+    "notice": {"const": "SIMULATION_NOTICE_v1"}
+  }
+}

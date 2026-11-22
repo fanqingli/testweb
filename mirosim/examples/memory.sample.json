@@ -1,0 +1,16 @@
+[
+  {
+    "memory_id": "m_4b1c9e20",
+    "persona_id": "p_0a31f7",
+    "world_id": "w_base",
+    "seq": 1042,
+    "kind": "world_event",
+    "occurred_on": "2027-01-10",
+    "content": "市里出了配送新规，半年后平台不能把时间卡太死，下雨超时不罚。我当时觉得规定不错，但不信申诉那一条。",
+    "valence": 1,
+    "importance": 7,
+    "objects": ["policy:s_delivery_time_limit", "topic:配送时限"],
+    "source": {"type": "committed_run", "run_id": "run_x_delivery_limit_panel_01_B_r1_fam1", "response_id": "r_x_delivery_limit_panel_01_B_1_p_0a31f7"},
+    "supersedes": null
+  }
+]

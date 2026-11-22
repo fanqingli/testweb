@@ -1,0 +1,48 @@
+stimulus_id: s_delivery_time_limit
+pack: policy
+kind: clause
+title: "《城市配送服务管理办法（征求意见稿）》配送时限条款"
+context:
+  background: >
+    本市拟出台配送服务管理办法。起因是过去一年配送员交通事故增多，同时消费者对超时的投诉也在上升。
+    目前各平台自行设定送达时限，超时由配送员承担罚款。
+  as_of_date: "2026-11-22"
+  channel_plan:
+    - {channel: workplace_notice, reach: 0.9}
+    - {channel: news_app, reach: 0.3}
+    - {channel: short_video, reach: 0.2}
+    - {channel: group_chat, reach: 0.4}
+    - {channel: community_notice, reach: 0.1}
+variants:
+  - variant_id: S0
+    label: "维持现状"
+    role: status_quo
+    content: "不出台新规定，各平台继续自行设定送达时限和罚则。"
+  - variant_id: A
+    label: "立即执行统一下限"
+    role: candidate
+    content: >
+      自发布之日起三十日后施行：平台设定的送达时限不得短于按路程测算的合理时间；
+      因恶劣天气、交通管制造成的超时不得罚款；违反的平台按次处罚。
+    attributes: {transition_months: 1, scope: "全行业", exemption: true}
+  - variant_id: B
+    label: "六个月过渡期"
+    role: candidate
+    content: >
+      设六个月过渡期：过渡期内平台须公示送达时限的测算办法并接受监督，过渡期满后施行统一下限；
+      因恶劣天气、交通管制造成的超时不得罚款；配送员对罚款可向第三方机构申诉。
+    attributes: {transition_months: 6, scope: "全行业", exemption: true, appeal: true}
+  - variant_id: C
+    label: "分区域试点"
+    role: candidate
+    content: >
+      先在两个城区试点一年，试点区内施行统一下限和免罚情形，其余区域暂不变；
+      试点期满评估后决定是否全市推开。
+    attributes: {transition_months: 12, scope: "两个城区", exemption: true}
+  - variant_id: B_PLACEBO
+    label: "六个月过渡期（重复）"
+    role: placebo
+    placebo_of: B
+    content: >
+      设六个月过渡期：过渡期内平台须公示送达时限的测算办法并接受监督，过渡期满后施行统一下限；
+      因恶劣天气、交通管制造成的超时不得罚款；配送员对罚款可向第三方机构申诉。

@@ -1,0 +1,30 @@
+experiment_id: x_delivery_limit_panel_01
+pack: policy
+question: "三个候选方案里，哪一个在配送员和加盟商两个群体中的反对都最少，并且各自的反对理由是什么"
+success_criteria:
+  - "每个候选方案都给出分群体的立场分布与行为选择分布"
+  - "配送员与加盟商两群体各列出前三位反对理由，每条附至少两句人物原话"
+  - "安慰剂版本与其对应版本之间的差异不显著，否则本次结论作废"
+forbidden_claims:
+  - "把模拟比例当作真实支持率对外引用"
+  - "判定哪个方案应当采纳"
+stimulus: examples/stimulus.policy.yaml
+population:
+  frame: examples/frame.delivery_policy.yaml
+  size: 300
+  reuse_min_ratio: 0.5
+  base_world: w_base
+design:
+  mode: panel
+  exposure: forced
+  replicates: 3
+  seed: 20261122
+  model_families: 2
+measures: [pol_impact, pol_fair, pol_stance, pol_condition, pol_trust_exec, pol_worry, pol_info_need]
+models:
+  persona_tier: tier-economy
+  analysis_tier: tier-reason
+  temperature: 0.9
+memory: {read: true, top_k: 5, commit_policy: none}
+budget: {max_calls: 18000, max_input_tokens: 40000000, max_output_tokens: 8000000}
+notice: SIMULATION_NOTICE_v1
