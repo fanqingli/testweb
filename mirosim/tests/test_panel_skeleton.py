@@ -159,3 +159,10 @@ def test_changed_seed_does_not_reuse_recorded_answers(tmp_path):
     reseeded.write_text(POLICY.read_text(encoding="utf-8").replace("seed: 20261122", "seed: 7"), encoding="utf-8")
     _, gateway = run(reseeded, tmp_path)
     assert gateway.live_calls == 45
+
+
+def test_mock_reads_the_question_block_not_json_in_the_stimulus():
+    spec = {"measures": {"m": {"min": 1, "max": 5}}, "behavior_options": ["none", "wait"]}
+    user = "内容：示例\n```json\n{\"price\": 19}\n```\n\n```json\n" + json.dumps(spec) + "\n```"
+    payload = json.loads(MockBackend().complete("s", user, seed=3))
+    assert payload["behavior"] in spec["behavior_options"]

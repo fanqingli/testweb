@@ -84,7 +84,7 @@ class MockBackend:
     model_id = "mock-v1"
 
     def complete(self, system: str, user: str, *, seed: int) -> str:
-        spec = json.loads(re.search(r"```json\n(.*?)\n```", user, re.S).group(1))
+        spec = json.loads(re.findall(r"```json\n(.*?)\n```", user, re.S)[-1])  # 题目定义在提示词末尾
         prompt = hashlib.sha256((system + user).encode()).hexdigest()
 
         def pick(key: str, n: int) -> int:
