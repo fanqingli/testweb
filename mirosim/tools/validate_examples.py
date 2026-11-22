@@ -31,12 +31,16 @@ def jsonable(obj):
     return json.loads(json.dumps(obj, default=str, ensure_ascii=False))
 
 
-def check(schema_name: str, path: Path, doc=None) -> dict:
+def check(schema_name: str, path: Path, doc=None) -> dict | None:
+    """通过 schema 校验则返回文档；否则记录错误并返回 None，调用方跳过后续的交叉检查。"""
     schema = load(ROOT / "schemas" / f"{schema_name}.schema.json")
     doc = jsonable(load(path) if doc is None else doc)
-    for e in Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(doc):
-        errors.append(f"{path.relative_to(ROOT)}: {'/'.join(map(str, e.absolute_path))}: {e.message}")
-    return doc
+    found = [
+        f"{path.relative_to(ROOT)}: {'/'.join(map(str, e.absolute_path))}: {e.message}"
+        for e in Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(doc)
+    ]
+    errors.extend(found)
+    return None if found else doc
 
 
 def fail(path: Path, msg: str) -> None:
@@ -55,6 +59,8 @@ def main() -> int:
     personas = {}
     for path in sorted((ex / "personas").glob("*.json")):
         p = check("persona", path)
+        if p is None:
+            continue
         personas[p["persona_id"]] = p
         mbti = p["psyche"]["mbti"]
         if mbti_type(mbti["axes"]) != mbti["type"]:
@@ -77,11 +83,13 @@ def main() -> int:
     for pid, p in personas.items():
         for r in p.get("relations", []):
             if r["to"] not in personas:
-                fail(ex / "personas" / f"{pid}.json", f"relations.to 指向不存在的人物 {r['to']}")
+                fail(ex / "personas" / f"{pid}.json", f"relations.to 指向的人物 {r['to']} 不存在，或其人物卡未通过 schema 校验")
 
     stimuli = {}
     for path in sorted(ex.glob("stimulus.*.yaml")):
         s = check("stimulus", path)
+        if s is None:
+            continue
         stimuli[str(path.relative_to(ROOT))] = stimuli[s["stimulus_id"]] = s
         ids = [v["variant_id"] for v in s["variants"]]
         if len(ids) != len(set(ids)):
@@ -107,19 +115,25 @@ def main() -> int:
     frames = {}
     for path in sorted(ex.glob("frame.*.yaml")):
         f = check("population_frame", path)
+        if f is None:
+            continue
         frames[str(path.relative_to(ROOT))] = frames[f["frame_id"]] = f
         if abs(sum(s["share"] for s in f["segments"]) - 1) > 1e-6:
             fail(path, "segments.share 合计应为 1")
 
+    n_experiments = 0
     for path in sorted(ex.glob("experiment.*.yaml")):
         x = check("experiment", path)
+        if x is None:
+            continue
+        n_experiments += 1
         s = stimuli.get(x["stimulus"])
         f = frames.get(x["population"]["frame"])
         if s is None:
-            fail(path, f"找不到 stimulus {x['stimulus']}")
+            fail(path, f"找不到 stimulus {x['stimulus']}（不存在，或该文件未通过 schema 校验）")
             continue
         if f is None:
-            fail(path, f"找不到人群框架 {x['population']['frame']}")
+            fail(path, f"找不到人群框架 {x['population']['frame']}（不存在，或该文件未通过 schema 校验）")
             continue
         if s["pack"] != x["pack"]:
             fail(path, "实验与 stimulus 的 pack 不一致")
@@ -147,14 +161,15 @@ def main() -> int:
             fail(path, "diffusion 模式需要 commit_policy=sandbox（步间记忆写入分支世界）")
 
     r = check("response", ex / "response.sample.json")
-    if r["persona_id"] not in personas:
-        fail(ex / "response.sample.json", "persona_id 不存在")
-    pol = measures_cfg["policy"]
-    for k in r["payload"]["answers"]:
-        if k not in pol["measures"]:
-            fail(ex / "response.sample.json", f"answers 含未定义量表项 {k}")
-    if r["payload"]["behavior"] not in pol["behavior"]["options"]:
-        fail(ex / "response.sample.json", "behavior 不在选项内")
+    if r is not None:
+        if r["persona_id"] not in personas:
+            fail(ex / "response.sample.json", "persona_id 不存在，或其人物卡未通过 schema 校验")
+        pol = measures_cfg["policy"]
+        for k in r["payload"]["answers"]:
+            if k not in pol["measures"]:
+                fail(ex / "response.sample.json", f"answers 含未定义量表项 {k}")
+        if r["payload"]["behavior"] not in pol["behavior"]["options"]:
+            fail(ex / "response.sample.json", "behavior 不在选项内")
     for pack in ("policy", "marketing", "brand"):
         if "none" not in measures_cfg[pack]["behavior"]["options"]:
             errors.append(f"config/measures.yaml: {pack}.behavior 必须含 none")
@@ -166,7 +181,7 @@ def main() -> int:
         print("\n".join(errors))
         print(f"\n{len(errors)} 处错误")
         return 1
-    print(f"通过：{len(personas)} 张人物卡、{len(stimuli) // 2} 个刺激物、{len(frames) // 2} 个人群框架、3 个实验配置、样例反应与记忆")
+    print(f"通过：{len(personas)} 张人物卡、{len(stimuli) // 2} 个刺激物、{len(frames) // 2} 个人群框架、{n_experiments} 个实验配置、样例反应与记忆")
     return 0
 
 
