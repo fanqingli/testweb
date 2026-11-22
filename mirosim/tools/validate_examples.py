@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from derive_behavior import hard_params, mbti_type, soft_text  # noqa: E402
 
+MAX_ATTEMPTS = 2  # 每条反应首次调用 + 至多一次重试（docs/03 §1）
 errors: list[str] = []
 
 
@@ -139,8 +140,9 @@ def main() -> int:
         calls = x["population"]["size"] * len(variants) * d["replicates"] * d.get("model_families", 1) * d.get("steps", 1)
         if d.get("baseline"):
             calls += x["population"]["size"] * d.get("model_families", 1)
+        calls *= MAX_ATTEMPTS
         if calls > x["budget"]["max_calls"]:
-            fail(path, f"人物调用上界 {calls} 超过 budget.max_calls")
+            fail(path, f"人物调用上界 {calls}（含重试）超过 budget.max_calls")
         if d["mode"] == "diffusion" and x["memory"]["commit_policy"] != "sandbox":
             fail(path, "diffusion 模式需要 commit_policy=sandbox（步间记忆写入分支世界）")
 

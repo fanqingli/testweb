@@ -24,5 +24,5 @@ models:
   persona_tier: tier-economy
   analysis_tier: tier-reason
 memory: {read: true, top_k: 5, commit_policy: sandbox}
-budget: {max_calls: 15000}
+budget: {max_calls: 22500}
 notice: SIMULATION_NOTICE_v1

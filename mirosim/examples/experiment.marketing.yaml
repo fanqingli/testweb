@@ -25,5 +25,5 @@ models:
   analysis_tier: tier-reason
   temperature: 0.9
 memory: {read: true, top_k: 5, commit_policy: none}
-budget: {max_calls: 6000}
+budget: {max_calls: 7500}
 notice: SIMULATION_NOTICE_v1
