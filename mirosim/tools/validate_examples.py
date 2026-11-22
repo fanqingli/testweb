@@ -128,7 +128,13 @@ def main() -> int:
                 fail(path, f"量表项 {m} 未在 config/measures.yaml 的 {x['pack']} 包中定义")
         if sum(seg["n"] for seg in f["segments"]) != x["population"]["size"]:
             fail(path, "population.size 应等于各分群 n 之和")
-        variants = x["design"].get("variants") or [v["variant_id"] for v in s["variants"]]
+        all_variants = [v["variant_id"] for v in s["variants"]]
+        variants = x["design"].get("variants") or all_variants
+        if len(variants) != len(set(variants)):
+            fail(path, "design.variants 有重复")
+        for vid in variants:
+            if vid not in all_variants:
+                fail(path, f"design.variants 中的 {vid} 不在刺激物的版本里")
         d = x["design"]
         calls = x["population"]["size"] * len(variants) * d["replicates"] * d.get("model_families", 1) * d.get("steps", 1)
         if d.get("baseline"):
