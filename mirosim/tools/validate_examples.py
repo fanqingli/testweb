@@ -81,7 +81,7 @@ def main() -> int:
     stimuli = {}
     for path in sorted(ex.glob("stimulus.*.yaml")):
         s = check("stimulus", path)
-        stimuli[str(path.relative_to(ROOT))] = s
+        stimuli[str(path.relative_to(ROOT))] = stimuli[s["stimulus_id"]] = s
         ids = [v["variant_id"] for v in s["variants"]]
         if len(ids) != len(set(ids)):
             fail(path, "variant_id 重复")
@@ -106,7 +106,7 @@ def main() -> int:
     frames = {}
     for path in sorted(ex.glob("frame.*.yaml")):
         f = check("population_frame", path)
-        frames[str(path.relative_to(ROOT))] = f
+        frames[str(path.relative_to(ROOT))] = frames[f["frame_id"]] = f
         if abs(sum(s["share"] for s in f["segments"]) - 1) > 1e-6:
             fail(path, "segments.share 合计应为 1")
 
@@ -158,7 +158,7 @@ def main() -> int:
         print("\n".join(errors))
         print(f"\n{len(errors)} 处错误")
         return 1
-    print(f"通过：{len(personas)} 张人物卡、{len(stimuli)} 个刺激物、{len(frames)} 个人群框架、3 个实验配置、样例反应与记忆")
+    print(f"通过：{len(personas)} 张人物卡、{len(stimuli) // 2} 个刺激物、{len(frames) // 2} 个人群框架、3 个实验配置、样例反应与记忆")
     return 0
 
 
