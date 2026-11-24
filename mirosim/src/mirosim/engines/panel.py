@@ -10,6 +10,8 @@ import json
 import re
 from pathlib import Path
 
+from concurrent.futures import FIRST_EXCEPTION, ThreadPoolExecutor, wait
+
 import yaml
 from jsonschema import Draft202012Validator
 
@@ -186,7 +188,23 @@ def load_personas(directory: Path) -> list[dict]:
     return sorted(personas, key=lambda p: p["persona_id"])
 
 
-def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway: Gateway, root: Path = ROOT) -> dict:
+def in_order(work, items: list, concurrency: int) -> list:
+    """对每一项做 work，结果按 items 的顺序返回。有一项失败时，还没开始的不再开始，
+    已经发出去的等它做完（它的调用已经计费，结果会留在录制里），然后抛出第一个失败。"""
+    if concurrency <= 1:
+        return [work(item) for item in items]
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        futures = [pool.submit(work, item) for item in items]
+        try:
+            wait(futures, return_when=FIRST_EXCEPTION)
+        finally:
+            for f in futures:  # 对已开始或已完成的没有影响
+                f.cancel()
+        return [f.result() for f in futures]
+
+
+def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway: Gateway, root: Path = ROOT,
+              concurrency: int = 1) -> dict:
     experiment_path, out_dir = Path(experiment_path), Path(out_dir)
     x = _yaml(experiment_path)
     if x["design"]["mode"] != "panel":
@@ -238,38 +256,41 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
     if not gateway.replay:
         (out_dir / "personas.lock.json").write_text(manifest.dump(lock), encoding="utf-8")
         write_manifest(created_at)
+    def react(run_id: str, vid: str, replicate: int, p: dict) -> dict:
+        pid = p["persona_id"]
+        exp = exposure(seed, p, replicate, d.get("exposure", "forced"), s["context"].get("channel_plan", []))
+        rec = {
+            "response_id": f"r_{x['experiment_id']}_{vid}_{replicate}_{pid}", "run_id": run_id,
+            "persona_id": pid, "persona_version": p["version"], "variant_id": vid, "replicate": replicate,
+            "exposure": exp, "call_id": None, "valid": True, "invalid_reason": None,
+        }
+        if exp["exposed"]:
+            max_chars = hard_params(p, behavior_cfg)["max_chars"]
+            system = system_prompt(templates["persona_system"], p, behavior_cfg, text_cfg, s["context"]["as_of_date"])
+            user = user_prompt(templates["panel_reaction"], s, by_id[vid], exp["channel"], channel_cfg, specs[vid], max_chars)
+            reason = None
+            for attempt in range(MAX_ATTEMPTS):
+                retry = f"\n\n你上一次的输出不合格：{reason}。请重新只输出一个 JSON 对象。" if attempt else ""
+                result = gateway.call(
+                    system=system, user=user + retry, purpose="persona", run_id=run_id, ordinal=attempt,
+                    seed=int(u01(seed, "call", run_id, pid, attempt) * 2**32), spec=specs[vid])
+                payload, reason, truncated = validate_payload(result.text, specs[vid], response_schema["properties"]["payload"], max_chars)
+                rec["call_id"] = "c_" + result.call_key[:16]
+                if payload is not None:
+                    break
+            rec["valid"], rec["invalid_reason"] = payload is not None, reason
+            if payload is not None:
+                rec["payload"] = payload
+                if truncated:
+                    rec["truncated"] = True
+        return rec
+
     responses = []
     try:
         for run_id, (vid, replicate, _) in list(statuses.items()):
             statuses[run_id] = (vid, replicate, "running")
-            for p in personas:
-                pid = p["persona_id"]
-                exp = exposure(seed, p, replicate, d.get("exposure", "forced"), s["context"].get("channel_plan", []))
-                rec = {
-                    "response_id": f"r_{x['experiment_id']}_{vid}_{replicate}_{pid}", "run_id": run_id,
-                    "persona_id": pid, "persona_version": p["version"], "variant_id": vid, "replicate": replicate,
-                    "exposure": exp, "call_id": None, "valid": True, "invalid_reason": None,
-                }
-                if exp["exposed"]:
-                    max_chars = hard_params(p, behavior_cfg)["max_chars"]
-                    system = system_prompt(templates["persona_system"], p, behavior_cfg, text_cfg, s["context"]["as_of_date"])
-                    user = user_prompt(templates["panel_reaction"], s, by_id[vid], exp["channel"], channel_cfg, specs[vid], max_chars)
-                    reason = None
-                    for attempt in range(MAX_ATTEMPTS):
-                        retry = f"\n\n你上一次的输出不合格：{reason}。请重新只输出一个 JSON 对象。" if attempt else ""
-                        result = gateway.call(
-                            system=system, user=user + retry, purpose="persona", run_id=run_id, ordinal=attempt,
-                            seed=int(u01(seed, "call", run_id, pid, attempt) * 2**32), spec=specs[vid])
-                        payload, reason, truncated = validate_payload(result.text, specs[vid], response_schema["properties"]["payload"], max_chars)
-                        rec["call_id"] = "c_" + result.call_key[:16]
-                        if payload is not None:
-                            break
-                    rec["valid"], rec["invalid_reason"] = payload is not None, reason
-                    if payload is not None:
-                        rec["payload"] = payload
-                        if truncated:
-                            rec["truncated"] = True
-                responses.append(rec)
+            # 一格之内各人并发；结果按人物顺序收，产物与串行时逐字节相同
+            responses += in_order(lambda p: react(run_id, vid, replicate, p), personas, concurrency)
             statuses[run_id] = (vid, replicate, "done")
     except BaseException:  # 中断时把跑到一半的那一格记成 partial，再把异常交回去
         statuses.update({k: (v[0], v[1], "partial") for k, v in statuses.items() if v[2] == "running"})

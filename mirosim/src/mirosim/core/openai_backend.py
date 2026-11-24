@@ -8,6 +8,7 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -60,7 +61,16 @@ class OpenAICompatBackend:
         self.supports_json_mode, self.supports_seed = supports_json_mode, supports_seed
         self.timeout, self.max_retries, self._transport, self._sleep = timeout, max_retries, transport, sleep or time.sleep
         self.provider = provider or address.hostname or ""  # 写进运行清单
-        self.last_usage: dict | None = None
+        self._local = threading.local()
+
+    @property
+    def last_usage(self) -> dict | None:
+        """本线程最近一次调用的 token 用量。按线程各存一份：并发时网关读到的是自己那次调用的用量。"""
+        return getattr(self._local, "usage", None)
+
+    @last_usage.setter
+    def last_usage(self, value: dict | None) -> None:
+        self._local.usage = value
 
     @property
     def key_params(self) -> dict:
