@@ -157,7 +157,10 @@ def test_changed_seed_does_not_reuse_recorded_answers(tmp_path):
     run(POLICY, tmp_path)
     reseeded = tmp_path / "experiment.yaml"
     reseeded.write_text(POLICY.read_text(encoding="utf-8").replace("seed: 20261122", "seed: 7"), encoding="utf-8")
-    _, gateway = run(reseeded, tmp_path)
+    other = tmp_path / "other"  # 只带录制过去：同一目录里换种子会被运行清单拦下，见 test_manifest.py
+    other.mkdir()
+    shutil.copy(tmp_path / "recording.jsonl", other / "recording.jsonl")
+    _, gateway = run(reseeded, other)
     assert gateway.live_calls == 45
 
 

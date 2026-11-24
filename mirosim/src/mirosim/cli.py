@@ -16,6 +16,7 @@ import yaml
 from mirosim import NOTICE, ROOT
 from mirosim.analysis.contrast import contrast_table
 from mirosim.core.gateway import BudgetExceeded, Gateway, MockBackend
+from mirosim.core.manifest import ManifestMismatch
 from mirosim.core.openai_backend import BackendError, from_tier
 from mirosim.engines.panel import run_panel
 
@@ -58,6 +59,9 @@ def main(argv: list[str] | None = None) -> int:
                           max_output_tokens=budget.get("max_output_tokens"))
         try:
             result = run_panel(args.experiment, args.personas, args.out, gateway)
+        except ManifestMismatch as e:
+            print(f"错误：{e}", file=sys.stderr)
+            return 2
         except (BackendError, BudgetExceeded) as e:
             print(f"中断：{e}\n已完成的 {gateway.recorded_calls} 次调用留在录制里，原样重跑会从断点接着做，不重复计费。", file=sys.stderr)
             return 1

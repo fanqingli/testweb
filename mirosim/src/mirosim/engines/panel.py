@@ -15,6 +15,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from mirosim import NOTICE, ROOT
+from mirosim.core import manifest
 from mirosim.core.gateway import Gateway
 from mirosim.core.rng import u01
 from mirosim.experiment.sampling import draw_sample
@@ -199,11 +200,11 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
     if not stimulus_path.is_file():
         raise FileNotFoundError(f"骨架只支持用文件路径引用刺激物：{x['stimulus']}")
     s = _yaml(stimulus_path)
-    measures_cfg = _yaml(root / "config" / "measures.yaml")
-    behavior_cfg = _yaml(root / "config" / "mbti_behavior_map.yaml")
-    channel_cfg = _yaml(root / "config" / "channels.yaml")["channels"]
-    text_cfg = _yaml(root / "config" / "persona_text.yaml")
-    response_schema = json.loads((root / "schemas" / "response.schema.json").read_text(encoding="utf-8"))
+    config_paths = {name: root / "config" / f"{name}.yaml" for name in ("measures", "mbti_behavior_map", "channels", "persona_text")}
+    config_paths["response_schema"] = root / "schemas" / "response.schema.json"
+    measures_cfg, behavior_cfg, text_cfg = (_yaml(config_paths[name]) for name in ("measures", "mbti_behavior_map", "persona_text"))
+    channel_cfg = _yaml(config_paths["channels"])["channels"]
+    response_schema = json.loads(config_paths["response_schema"].read_text(encoding="utf-8"))
     templates = {name: load_template(root, name) for name in ("persona_system", "panel_reaction")}
     spec = measure_spec(measures_cfg[x["pack"]], measures_cfg["scales"], x["measures"])
     frame_path = root / x["population"]["frame"]
@@ -222,10 +223,27 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
     variant_ids = x["design"].get("variants") or list(by_id)
     seed, d = x["design"]["seed"], x["design"]
 
+    statuses = {f"run_{x['experiment_id']}_{vid}_r{replicate}_fam1": (vid, replicate, "pending")
+                for replicate in range(1, d["replicates"] + 1) for vid in variant_ids}
+    lock = manifest.population_lock(personas)
+
+    def current_manifest(created_at: str) -> dict:
+        return manifest.build(experiment=x, root=root, stimulus_path=stimulus_path, frame_path=frame_path, lock=lock,
+                              config_paths=config_paths, prompt_ids=list(templates), gateway=gateway, statuses=statuses,
+                              created_at=created_at)
+
+    def write_manifest(created_at: str) -> None:
+        (out_dir / "manifest.json").write_text(manifest.dump(current_manifest(created_at)), encoding="utf-8")
+
+    # 发任何调用、写任何产物之前先比对：目录里已有的运行若用的是另一套输入，就此停下
+    created_at = manifest.check_lock(out_dir / "manifest.json", current_manifest("")) or manifest.now()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "personas.lock.json").write_text(manifest.dump(lock), encoding="utf-8")
+    write_manifest(created_at)
     responses = []
-    for replicate in range(1, d["replicates"] + 1):
-        for vid in variant_ids:
-            run_id = f"run_{x['experiment_id']}_{vid}_r{replicate}_fam1"
+    try:
+        for run_id, (vid, replicate, _) in list(statuses.items()):
+            statuses[run_id] = (vid, replicate, "running")
             for p in personas:
                 pid = p["persona_id"]
                 exp = exposure(seed, p, replicate, d.get("exposure", "forced"), s["context"].get("channel_plan", []))
@@ -254,8 +272,12 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
                         if truncated:
                             rec["truncated"] = True
                 responses.append(rec)
+            statuses[run_id] = (vid, replicate, "done")
+    except BaseException:  # 中断时把跑到一半的那一格记成 partial，再把异常交回去
+        statuses.update({k: (v[0], v[1], "partial") for k, v in statuses.items() if v[2] == "running"})
+        write_manifest(created_at)
+        raise
 
-    out_dir.mkdir(parents=True, exist_ok=True)
     with (out_dir / "responses.jsonl").open("w", encoding="utf-8") as f:
         for rec in responses:
             f.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
@@ -280,4 +302,5 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
         "truncated": sum(r.get("truncated", False) for r in responses),
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    write_manifest(created_at)
     return summary
