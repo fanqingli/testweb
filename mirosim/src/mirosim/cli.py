@@ -33,6 +33,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--replay", action="store_true", help="只读录制，不发调用")
     run.add_argument("--backend", choices=["mock", "openai"], default="mock",
                      help="openai：按模型配置调 OpenAI 兼容接口，会产生费用")
+    run.add_argument("--concurrency", type=int, default=1, help="同时在途的调用数，缺省 1（串行）")
+    run.add_argument("--rpm", type=float, default=None, help="每分钟最多发多少次调用，缺省不限")
     run.add_argument("--models", type=Path, default=ROOT / "config" / "model_tiers.yaml",
                      help="模型配置文件，缺省为 config/model_tiers.yaml")
     con = sub.add_parser("contrast", help="对一次运行做配对比较")
@@ -43,6 +45,8 @@ def main(argv: list[str] | None = None) -> int:
 
     x = yaml.safe_load(args.experiment.read_text(encoding="utf-8"))
     if args.cmd == "run-panel":
+        if args.concurrency < 1 or (args.rpm is not None and args.rpm <= 0):
+            ap.error("--concurrency 至少为 1，--rpm 必须大于 0")
         if args.backend == "openai":
             models_cfg = yaml.safe_load(args.models.read_text(encoding="utf-8"))
             try:
@@ -56,9 +60,9 @@ def main(argv: list[str] | None = None) -> int:
         budget = x["budget"]
         gateway = Gateway(backend, args.out / "recording.jsonl", replay=args.replay, params=getattr(backend, "key_params", None),
                           max_calls=budget["max_calls"], max_input_tokens=budget.get("max_input_tokens"),
-                          max_output_tokens=budget.get("max_output_tokens"))
+                          max_output_tokens=budget.get("max_output_tokens"), requests_per_minute=args.rpm)
         try:
-            result = run_panel(args.experiment, args.personas, args.out, gateway)
+            result = run_panel(args.experiment, args.personas, args.out, gateway, concurrency=args.concurrency)
         except ManifestMismatch as e:
             print(f"错误：{e}", file=sys.stderr)
             return 2

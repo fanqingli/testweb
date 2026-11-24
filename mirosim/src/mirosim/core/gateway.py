@@ -1,9 +1,11 @@
-"""模型网关（骨架）：录制与回放、调用数与 token 预算。尚无并发、限流、降级。"""
+"""模型网关（骨架）：录制与回放、调用数与 token 预算、限速；可以被多个线程同时调用。尚无降级。"""
 from __future__ import annotations
 
 import hashlib
 import json
 import os
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -45,12 +47,17 @@ def call_key(*, run_id: str, purpose: str, model_id: str, params: dict, system: 
 class Gateway:
     def __init__(self, backend: Backend, recording: Path, *, replay: bool = False,
                  params: dict | None = None, max_calls: int | None = None,
-                 max_input_tokens: int | None = None, max_output_tokens: int | None = None):
+                 max_input_tokens: int | None = None, max_output_tokens: int | None = None,
+                 requests_per_minute: float | None = None, clock=time.monotonic, sleep=time.sleep):
         self.backend, self.recording, self.replay = backend, Path(recording), replay
         self.params, self.max_calls = params or {}, max_calls
         self.max_tokens = {"input_tokens": max_input_tokens, "output_tokens": max_output_tokens}
         self.usage = {"input_tokens": 0, "output_tokens": 0}  # 录制里全部调用的合计；后端不报用量时不计
         self.live_calls = 0
+        self._lock = threading.Lock()
+        self._in_flight = 0  # 已发出、还没回来的调用；算进调用数预算，并发时才不会超
+        self._interval = 60.0 / requests_per_minute if requests_per_minute else 0.0
+        self._next_slot, self._clock, self._sleep = 0.0, clock, sleep
         self._recorded: dict[str, str] = {}
         if self.recording.exists():
             for line in self.recording.read_text(encoding="utf-8").splitlines():
@@ -72,29 +79,42 @@ class Gateway:
              spec: dict | None = None) -> CallResult:
         key = call_key(run_id=run_id, purpose=purpose, model_id=self.backend.model_id, params=self.params,
                        system=system, user=user, ordinal=ordinal, seed=seed)
-        if key in self._recorded:
-            return CallResult(key, self._recorded[key], True)
-        if self.replay:
-            raise ReplayMiss(f"{run_id} #{ordinal}")
-        if self.max_calls is not None and len(self._recorded) >= self.max_calls:  # 录制里已有的调用也算
-            raise BudgetExceeded(f"录制里已有 {len(self._recorded)} 次调用，预算 {self.max_calls}")
-        for k, limit in self.max_tokens.items():  # 事后计量：到线后不再发新调用，最后一次调用可能略超
-            if limit is not None and self.usage[k] >= limit:
-                raise BudgetExceeded(f"{k} 已用 {self.usage[k]}，预算 {limit}")
-        text = self.backend.complete(system, user, seed=seed, spec=spec)
-        self.live_calls += 1
-        usage = getattr(self.backend, "last_usage", None)
-        rec = {"call_key": key, "run_id": run_id, "purpose": purpose, "model_id": self.backend.model_id,
-               "params": self.params, "seed": seed, "ordinal": ordinal, "request": {"system": system, "user": user}, "response": text}
-        if usage:
-            rec["usage"] = usage
-        self.recording.parent.mkdir(parents=True, exist_ok=True)
-        with self.recording.open("a", encoding="utf-8") as f:  # 写入成功后才把结果交给调用方
-            f.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
-            f.flush()
-            os.fsync(f.fileno())
-        self._recorded[key] = text
-        self._count(usage)
+        with self._lock:
+            if key in self._recorded:
+                return CallResult(key, self._recorded[key], True)
+            if self.replay:
+                raise ReplayMiss(f"{run_id} #{ordinal}")
+            used = len(self._recorded) + self._in_flight  # 录制里已有的调用也算
+            if self.max_calls is not None and used >= self.max_calls:
+                raise BudgetExceeded(f"录制里已有 {len(self._recorded)} 次调用，另有 {self._in_flight} 次在途，预算 {self.max_calls}")
+            for k, limit in self.max_tokens.items():  # 事后计量：到线后不再发新调用，在途的那几次可能使总量略超
+                if limit is not None and self.usage[k] >= limit:
+                    raise BudgetExceeded(f"{k} 已用 {self.usage[k]}，预算 {limit}")
+            self._in_flight += 1
+            now = self._clock()  # 限速：每次真实调用占一个时间格，格与格之间至少隔 60/每分钟上限 秒
+            slot = max(now, self._next_slot)
+            self._next_slot = slot + self._interval
+        try:
+            if slot > now:
+                self._sleep(slot - now)
+            text = self.backend.complete(system, user, seed=seed, spec=spec)
+            usage = getattr(self.backend, "last_usage", None)  # 后端按线程各存一份，见 OpenAICompatBackend
+            rec = {"call_key": key, "run_id": run_id, "purpose": purpose, "model_id": self.backend.model_id,
+                   "params": self.params, "seed": seed, "ordinal": ordinal, "request": {"system": system, "user": user}, "response": text}
+            if usage:
+                rec["usage"] = usage
+            with self._lock:
+                self.recording.parent.mkdir(parents=True, exist_ok=True)
+                with self.recording.open("a", encoding="utf-8") as f:  # 写入成功后才把结果交给调用方
+                    f.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
+                    f.flush()
+                    os.fsync(f.fileno())
+                self._recorded[key] = text
+                self._count(usage)
+                self.live_calls += 1
+        finally:
+            with self._lock:
+                self._in_flight -= 1
         return CallResult(key, text, False)
 
 
