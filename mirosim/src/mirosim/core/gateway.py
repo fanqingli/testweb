@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -23,7 +22,9 @@ class BudgetExceeded(RuntimeError):
 class Backend(Protocol):
     model_id: str
 
-    def complete(self, system: str, user: str, *, seed: int) -> str: ...
+    def complete(self, system: str, user: str, *, seed: int, spec: dict | None = None) -> str:
+        """spec 是这次调用期望的题目定义，供支持结构化输出的后端使用；它已体现在提示词里，不进 call_key。"""
+        ...
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,8 @@ class Gateway:
         elif replay:
             raise FileNotFoundError(self.recording)
 
-    def call(self, *, system: str, user: str, purpose: str, run_id: str, ordinal: int = 0, seed: int = 0) -> CallResult:
+    def call(self, *, system: str, user: str, purpose: str, run_id: str, ordinal: int = 0, seed: int = 0,
+             spec: dict | None = None) -> CallResult:
         key = call_key(run_id=run_id, purpose=purpose, model_id=self.backend.model_id, params=self.params,
                        system=system, user=user, ordinal=ordinal, seed=seed)
         if key in self._recorded:
@@ -64,7 +66,7 @@ class Gateway:
             raise ReplayMiss(f"{run_id} #{ordinal}")
         if self.max_calls is not None and len(self._recorded) >= self.max_calls:  # 录制里已有的调用也算
             raise BudgetExceeded(f"录制里已有 {len(self._recorded)} 次调用，预算 {self.max_calls}")
-        text = self.backend.complete(system, user, seed=seed)
+        text = self.backend.complete(system, user, seed=seed, spec=spec)
         self.live_calls += 1
         rec = {"call_key": key, "run_id": run_id, "purpose": purpose, "model_id": self.backend.model_id,
                "params": self.params, "seed": seed, "ordinal": ordinal, "request": {"system": system, "user": user}, "response": text}
@@ -83,8 +85,9 @@ class MockBackend:
 
     model_id = "mock-v1"
 
-    def complete(self, system: str, user: str, *, seed: int) -> str:
-        spec = json.loads(re.findall(r"```json\n(.*?)\n```", user, re.S)[-1])  # 题目定义在提示词末尾
+    def complete(self, system: str, user: str, *, seed: int, spec: dict | None = None) -> str:
+        if spec is None:
+            raise ValueError("MockBackend 需要题目定义 spec 才能给出格式合法的答案")
         prompt = hashlib.sha256((system + user).encode()).hexdigest()
 
         def pick(key: str, n: int) -> int:
@@ -108,6 +111,6 @@ class MockBackend:
             "answers": answers,
             "behavior": options[pick("behavior", len(options))] if noticed else "none",
             "reasons": ["[mock]"] if noticed else [],
-            "share": {"would_share": noticed and u01(seed, prompt, "share") < 0.2},
+            "share": {"would_share": noticed and u01(seed, prompt, "share") < 0.2, "to_whom": None, "what": None},
             "quote": "[mock]",
         }, ensure_ascii=False)

@@ -8,7 +8,7 @@
 
 【你是谁】
 {{ age }}岁，{{ gender_text }}，{{ education_text }}，住在{{ region_text }}。{{ household_text }}
-{{ occupation_text }}，干了{{ years }}年。一年到手大约{{ income_text }}。
+{{ occupation_text }}{% if years %}，干了{{ years }}年{% endif %}。一年到手大约{{ income_text }}。
 
 【你经历过的事】
 {% for e in core_life_events %}- {{ e.year }}年：{{ e.event }}。从那以后：{{ e.impact }}
@@ -44,8 +44,9 @@
 |---|---|---|
 | `age` | `as_of_date` 的年份 − `identity.birth_year` | 用刺激物的时间锚点算，不用系统当前日期 |
 | `core_life_events` | `history.life_events` 中 `core=true` 的，至多 3 条 | 其余生活事件进入记忆检索池，不常驻 |
-| `soft_lines` | `tools/derive_behavior.py: soft_text()` | 四条轴各一句；补充特质只在偏高或偏低时出一句 |
+| `soft_lines` | `src/mirosim/persona/behavior.py: soft_text()` | 四条轴各一句；补充特质只在偏高或偏低时出一句 |
 | `values_text` | `psyche.values_top3` 的中文名 | |
-| `income_text` | `identity.income_band` 的口语说法 | 如「七八万」而不是「50k_100k」 |
+| `income_text` | `identity.income_band` 的口语说法 | 如「五万到十万」而不是「50k_100k」 |
+| 各 `*_text` | `config/persona_text.yaml` | 枚举值到口语说法的对照表 |
 
 规矩第 1–3 条分别对应讨好偏差、参与度虚高、人人讲理三种已知失真（见 `docs/03`）。删改任何一条都要重跑人物库的品质检验。

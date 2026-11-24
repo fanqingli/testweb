@@ -98,9 +98,9 @@ class BadThenGood(MockBackend):
     def __init__(self, bad_ordinals):
         self.bad, self.n = bad_ordinals, 0
 
-    def complete(self, system, user, *, seed):
+    def complete(self, system, user, *, seed, spec=None):
         self.n += 1
-        return "我觉得还行" if (self.n - 1) % 2 in self.bad else super().complete(system, user, seed=seed)
+        return "我觉得还行" if (self.n - 1) % 2 in self.bad else super().complete(system, user, seed=seed, spec=spec)
 
 
 def test_invalid_answer_is_retried_once(tmp_path):
@@ -161,8 +161,9 @@ def test_changed_seed_does_not_reuse_recorded_answers(tmp_path):
     assert gateway.live_calls == 45
 
 
-def test_mock_reads_the_question_block_not_json_in_the_stimulus():
+def test_mock_answers_from_the_spec_it_is_given():
     spec = {"measures": {"m": {"min": 1, "max": 5}}, "behavior_options": ["none", "wait"]}
-    user = "内容：示例\n```json\n{\"price\": 19}\n```\n\n```json\n" + json.dumps(spec) + "\n```"
-    payload = json.loads(MockBackend().complete("s", user, seed=3))
+    payload = json.loads(MockBackend().complete("s", "内容里有 ```json\n{\"price\": 19}\n```", seed=3, spec=spec))
     assert payload["behavior"] in spec["behavior_options"]
+    with pytest.raises(ValueError):
+        MockBackend().complete("s", "u", seed=3)

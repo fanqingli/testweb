@@ -24,6 +24,7 @@
     "call_id": {"type": ["string", "null"], "description": "llm_calls 表主键；未曝光则为空"},
     "valid": {"type": "boolean"},
     "invalid_reason": {"type": ["string", "null"]},
+    "truncated": {"type": "boolean", "description": "引语超过该人物的字数上限（硬控制参数 max_chars），已被代码截断"},
     "payload": {
       "type": "object",
       "required": ["noticed", "takeaway", "inner_reaction", "answers", "behavior", "reasons", "share", "quote"],
@@ -43,11 +44,11 @@
           "type": "object", "required": ["would_share"], "additionalProperties": false,
           "properties": {
             "would_share": {"type": "boolean"},
-            "to_whom": {"type": "string"},
-            "what": {"type": "string", "maxLength": 100}
+            "to_whom": {"type": ["string", "null"]},
+            "what": {"type": ["string", "null"], "maxLength": 100}
           }
         },
-        "quote": {"type": "string", "maxLength": 150, "description": "如果有人问起，他会怎么说（公开表态，口语）"}
+        "quote": {"type": "string", "maxLength": 220, "description": "如果有人问起，他会怎么说（公开表态，口语）"}
       }
     }
   }

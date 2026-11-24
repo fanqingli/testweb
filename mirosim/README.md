@@ -80,7 +80,9 @@ python -m mirosim.cli contrast --run runs/demo \
 
 **取人与加权。** 运行时按实验配置里的人群框架，从 `--personas` 目录里给每个分群取 `n` 人（同一批人用于所有版本与重复），写出 `sample.jsonl`；`contrast` 同时给出加权与不加权两个数。目录里人数不够时不补人，只在 `summary.json` 的 `sample` 里报告缺口（`shortfall`）和抽到了人的分群占比之和（`covered_share`）。`covered_share` 小于 1 时，加权数字只代表这一部分人群。样例目录只有 3 个人物，所以样例实验的 `covered_share` 远小于 1。
 
-骨架里还没有的：真实模型后端、人物工厂（库内人数不足时补人）、分群内的多样性控制、记忆读取、多模型族、数据库（产物是 `runs/` 下的 JSONL）、`prompts/` 模板的接入（提示词是临时的最小版本）、字数等硬控制、报告。
+**提示词。** 系统提示词与用户消息由 `prompts/persona_system.md`、`prompts/panel_reaction.md` 里的模板渲染，人物卡里的枚举值按 `config/persona_text.yaml` 换成口语说法。引语超过该人物的字数上限时由代码截断并记 `truncated`；`ask_if` 条件题由代码决定问不问；不合格的输出带着原因重试一次。
+
+骨架里还没有的：真实模型后端、人物工厂（库内人数不足时补人）、分群内的多样性控制、记忆读取、多模型族、数据库（产物是 `runs/` 下的 JSONL）、发言概率与转述等其余硬控制、报告。
 
 ## 现状与未做
 
