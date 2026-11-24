@@ -144,3 +144,20 @@ def test_cli_reports_a_mismatch_and_exits_2(tmp_path, capsys):
 def test_code_version(tmp_path):
     assert code_version(tmp_path) == "unknown"
     assert len(code_version(ROOT).removesuffix("+dirty")) == 40
+
+
+def test_inputs_edited_while_the_run_is_in_progress_do_not_change_what_the_manifest_records(root, tmp_path):
+    frame = root / "examples" / "frame.delivery_policy.yaml"
+
+    class EditsTheFrameMidRun(MockBackend):
+        def complete(self, system, user, *, seed, spec=None):
+            frame.write_text(frame.read_text(encoding="utf-8").replace("share: 0.04", "share: 0.05"), encoding="utf-8")
+            return super().complete(system, user, seed=seed, spec=spec)
+
+    out, reference = tmp_path / "run", tmp_path / "reference"
+    run(root, reference)
+    experiment, personas = root / "examples" / "experiment.policy.yaml", root / "examples" / "personas"
+    run_panel(experiment, personas, out, Gateway(EditsTheFrameMidRun(), out / "recording.jsonl"), root=root)
+    assert manifest(out)["inputs"] == manifest(reference)["inputs"]
+    with pytest.raises(ManifestMismatch, match="frame_hash"):
+        run(root, out, replay=True)

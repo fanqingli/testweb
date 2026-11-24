@@ -52,15 +52,12 @@ def population_lock(personas: list[dict]) -> list[dict]:
     return [{"persona_id": p["persona_id"], "version": p["version"], "hash": sha_json(p)} for p in personas]
 
 
-def build(*, experiment: dict, root: Path, stimulus_path: Path, frame_path: Path, lock: list[dict],
-          config_paths: dict[str, Path], prompt_ids: list[str], gateway, statuses: dict[str, tuple[str, int, str]],
-          created_at: str) -> dict:
+def locked_sections(*, experiment: dict, root: Path, stimulus_path: Path, frame_path: Path, lock: list[dict],
+                    config_paths: dict[str, Path], prompt_ids: list[str], gateway) -> dict:
+    """清单里被锁定的三段。一次运行只算一次（开头），之后写清单都用这一份：
+    运行期间有人改了输入文件，清单记的仍是开头读到的那一版。"""
     backend = gateway.backend
-    recording = Path(gateway.recording)
     return {
-        "experiment_id": experiment["experiment_id"],
-        "created_at": created_at,
-        "code": {"git_commit": code_version(root)},
         "inputs": {
             # 预算不算实验内容：因预算中断后调高预算接着跑，不应被当成换了实验
             "experiment_hash": sha_json({k: v for k, v in experiment.items() if k != "budget"}),
@@ -69,12 +66,23 @@ def build(*, experiment: dict, root: Path, stimulus_path: Path, frame_path: Path
             "population_lock_hash": sha_json(lock),
             "config_hashes": {name: sha_file(path) for name, path in sorted(config_paths.items())},
         },
-        "matrix": [{"run_id": run_id, "variant_id": vid, "replicate": replicate, "model_family": "fam1", "status": status}
-                   for run_id, (vid, replicate, status) in statuses.items()],
         "models": [{"tier": experiment["models"]["persona_tier"], "provider": getattr(backend, "provider", ""),
                     "model_id": backend.model_id, "params": gateway.params,
                     "seed_supported": bool(getattr(backend, "supports_seed", False))}],
         "prompts": [{"id": name, "hash": sha_file(root / "prompts" / f"{name}.md")} for name in sorted(prompt_ids)],
+    }
+
+
+def build(*, locked: dict, experiment: dict, root: Path, gateway, statuses: dict[str, tuple[str, int, str]],
+          created_at: str) -> dict:
+    recording = Path(gateway.recording)
+    return {
+        **locked,
+        "experiment_id": experiment["experiment_id"],
+        "created_at": created_at,
+        "code": {"git_commit": code_version(root)},
+        "matrix": [{"run_id": run_id, "variant_id": vid, "replicate": replicate, "model_family": "fam1", "status": status}
+                   for run_id, (vid, replicate, status) in statuses.items()],
         "randomness": {"seed": experiment["design"]["seed"], "replayable": True, "rerun_stability": None},  # 一致率尚未计算
         "recording": {"calls": gateway.recorded_calls, "hash": sha_file(recording) if recording.exists() else ""},
         "usage": dict(gateway.usage),

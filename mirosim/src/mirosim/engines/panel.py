@@ -227,16 +227,15 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
                 for replicate in range(1, d["replicates"] + 1) for vid in variant_ids}
     lock = manifest.population_lock(personas)
 
-    def current_manifest(created_at: str) -> dict:
-        return manifest.build(experiment=x, root=root, stimulus_path=stimulus_path, frame_path=frame_path, lock=lock,
-                              config_paths=config_paths, prompt_ids=list(templates), gateway=gateway, statuses=statuses,
-                              created_at=created_at)
+    locked = manifest.locked_sections(experiment=x, root=root, stimulus_path=stimulus_path, frame_path=frame_path, lock=lock,
+                                      config_paths=config_paths, prompt_ids=list(templates), gateway=gateway)
 
     def write_manifest(created_at: str) -> None:
-        (out_dir / "manifest.json").write_text(manifest.dump(current_manifest(created_at)), encoding="utf-8")
+        m = manifest.build(locked=locked, experiment=x, root=root, gateway=gateway, statuses=statuses, created_at=created_at)
+        (out_dir / "manifest.json").write_text(manifest.dump(m), encoding="utf-8")
 
     # 发任何调用、写任何产物之前先比对：目录里已有的运行若用的是另一套输入，就此停下
-    created_at = manifest.check_lock(out_dir / "manifest.json", current_manifest("")) or manifest.now()
+    created_at = manifest.check_lock(out_dir / "manifest.json", locked) or manifest.now()
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "personas.lock.json").write_text(manifest.dump(lock), encoding="utf-8")
     write_manifest(created_at)
