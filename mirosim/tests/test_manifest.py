@@ -7,7 +7,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 from mirosim import ROOT
 from mirosim.cli import main
-from mirosim.core.gateway import BudgetExceeded, Gateway, MockBackend
+from mirosim.core.gateway import BudgetExceeded, Gateway, MockBackend, ReplayMiss
 from mirosim.core.manifest import ManifestMismatch, code_version
 from mirosim.engines.panel import run_panel
 
@@ -161,3 +161,28 @@ def test_inputs_edited_while_the_run_is_in_progress_do_not_change_what_the_manif
     assert manifest(out)["inputs"] == manifest(reference)["inputs"]
     with pytest.raises(ManifestMismatch, match="frame_hash"):
         run(root, out, replay=True)
+
+
+def test_a_failed_replay_leaves_the_original_manifest_alone(root, tmp_path):
+    out = tmp_path / "run"
+    run(root, out)
+    before = {name: (out / name).read_bytes() for name in ("manifest.json", "personas.lock.json")}
+    recording = out / "recording.jsonl"
+    lines = recording.read_text(encoding="utf-8").splitlines(keepends=True)
+    recording.write_text("".join(lines[:-5]), encoding="utf-8")  # 录制缺了几条
+    with pytest.raises(ReplayMiss):
+        run(root, out, replay=True)
+    assert {name: (out / name).read_bytes() for name in before} == before
+
+
+def test_replay_into_a_directory_with_only_a_recording_writes_the_manifest_on_success(root, tmp_path):
+    run(root, tmp_path / "a")
+    for name, lines in (("full", 45), ("short", 40)):
+        (tmp_path / name).mkdir()
+        kept = (tmp_path / "a" / "recording.jsonl").read_text(encoding="utf-8").splitlines(keepends=True)[:lines]
+        (tmp_path / name / "recording.jsonl").write_text("".join(kept), encoding="utf-8")
+    run(root, tmp_path / "full", replay=True)
+    assert manifest(tmp_path / "full")["inputs"] == manifest(tmp_path / "a")["inputs"]
+    with pytest.raises(ReplayMiss):
+        run(root, tmp_path / "short", replay=True)
+    assert [p.name for p in (tmp_path / "short").iterdir()] == ["recording.jsonl"]

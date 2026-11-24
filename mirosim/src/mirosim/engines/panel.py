@@ -235,10 +235,14 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
         (out_dir / "manifest.json").write_text(manifest.dump(m), encoding="utf-8")
 
     # 发任何调用、写任何产物之前先比对：目录里已有的运行若用的是另一套输入，就此停下
-    created_at = manifest.check_lock(out_dir / "manifest.json", locked) or manifest.now()
+    recorded_at = manifest.check_lock(out_dir / "manifest.json", locked)
+    created_at = recorded_at or manifest.now()
+    # 回放只是用录制重算产物，不发调用：目录里已有的清单是当初那次运行的记录，回放成不成功都不动它
+    keep_manifest = gateway.replay and recorded_at is not None
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "personas.lock.json").write_text(manifest.dump(lock), encoding="utf-8")
-    write_manifest(created_at)
+    if not gateway.replay:
+        (out_dir / "personas.lock.json").write_text(manifest.dump(lock), encoding="utf-8")
+        write_manifest(created_at)
     responses = []
     try:
         for run_id, (vid, replicate, _) in list(statuses.items()):
@@ -274,7 +278,8 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
             statuses[run_id] = (vid, replicate, "done")
     except BaseException:  # 中断时把跑到一半的那一格记成 partial，再把异常交回去
         statuses.update({k: (v[0], v[1], "partial") for k, v in statuses.items() if v[2] == "running"})
-        write_manifest(created_at)
+        if not gateway.replay:
+            write_manifest(created_at)
         raise
 
     with (out_dir / "responses.jsonl").open("w", encoding="utf-8") as f:
@@ -301,5 +306,7 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
         "truncated": sum(r.get("truncated", False) for r in responses),
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-    write_manifest(created_at)
+    if not keep_manifest:  # 回放到一个只有录制的目录：成功后补写清单
+        (out_dir / "personas.lock.json").write_text(manifest.dump(lock), encoding="utf-8")
+        write_manifest(created_at)
     return summary
