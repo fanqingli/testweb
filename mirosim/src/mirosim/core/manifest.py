@@ -83,7 +83,9 @@ def build(*, locked: dict, experiment: dict, root: Path, gateway, statuses: dict
         "code": {"git_commit": code_version(root)},
         "matrix": [{"run_id": run_id, "variant_id": vid, "replicate": replicate, "model_family": "fam1", "status": status}
                    for run_id, (vid, replicate, status) in statuses.items()],
-        "randomness": {"seed": experiment["design"]["seed"], "replayable": True, "rerun_stability": None},  # 一致率尚未计算
+        # 每一格都跑完，录制才是完整的；一致率尚未计算
+        "randomness": {"seed": experiment["design"]["seed"], "replayable": all(s[2] == "done" for s in statuses.values()),
+                       "rerun_stability": None},
         "recording": {"calls": gateway.recorded_calls, "hash": sha_file(recording) if recording.exists() else ""},
         "usage": dict(gateway.usage),
         "validity_level": "L0",  # 最低一级；骨架没有做任何效度认定

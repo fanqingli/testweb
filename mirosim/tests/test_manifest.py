@@ -114,10 +114,12 @@ def test_budget_is_not_locked_and_an_interrupted_run_is_marked(root, tmp_path):
     statuses = [r["status"] for r in m["matrix"]]
     assert statuses.count("partial") == 1 and set(statuses) <= {"done", "partial", "pending"}
     assert statuses.index("partial") == statuses.count("done") and m["recording"]["calls"] == 10
+    assert m["randomness"]["replayable"] is False
     rewrite(root / "examples" / "experiment.policy.yaml", "max_calls: 18000", "max_calls: 20000")
     _, gateway = run(root, out)
     after = manifest(out)
     assert gateway.live_calls == 35 and {r["status"] for r in after["matrix"]} == {"done"}
+    assert after["randomness"]["replayable"] is True
     assert after["created_at"] == m["created_at"] and after["inputs"] == m["inputs"]
 
 
