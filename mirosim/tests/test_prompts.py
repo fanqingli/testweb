@@ -176,3 +176,8 @@ def test_placebo_is_asked_the_same_questions_as_its_target(tmp_path):
             users.setdefault(r["variant_id"], set()).add(next(u for u in first if by_call[r["call_id"]].startswith(u)))
     assert users["B"] == users["B_PLACEBO"] and "pol_fair" in next(iter(users["B"]))
     assert all("- pol_fair：" not in u for u in users["A"])
+
+
+def test_only_a_leading_think_block_is_dropped():
+    payload, reason, _ = validate_payload("<think>选 {wait} 吧</think>\n" + answer(quote="他说<think>再想想</think>吧"), SPEC, SCHEMA, 150)
+    assert reason is None and payload["quote"] == "他说<think>再想想</think>吧"

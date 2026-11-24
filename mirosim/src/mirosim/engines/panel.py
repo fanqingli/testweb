@@ -141,10 +141,12 @@ def user_prompt(template, stimulus: dict, variant: dict, channel: str | None, ch
 def validate_payload(text: str, spec: dict, payload_schema: dict, max_chars: int | None = None) -> tuple[dict | None, str | None, bool]:
     """合格则返回 (payload, None, 引语是否被截断)，否则 (None, 原因, False)。
 
-    模型常在 JSON 外面包一层代码块或多写一句话，所以只取第一个 { 到最后一个 } 之间的部分。
+    模型常在 JSON 外面包一层代码块或多写一句话，所以只取第一个 { 到最后一个 } 之间的部分；
+    带推理过程的模型写在开头 <think> 里的内容先去掉（只认开头那一段，答案正文里出现的不动）。
     引语超过 max_chars 时截断，不算不合格。
     没在意（noticed=false）是有效的反应：答案清空、行为记为 none，不重试。
     """
+    text = re.sub(r"^\s*<think>.*?</think>", "", text, count=1, flags=re.S)
     try:
         payload = json.loads(text[text.find("{"): text.rfind("}") + 1])
     except json.JSONDecodeError as e:
