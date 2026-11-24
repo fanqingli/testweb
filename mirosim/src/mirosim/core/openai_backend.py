@@ -116,11 +116,14 @@ def from_tier(models_cfg: dict, tier: str, *, temperature: float | None = None, 
     key_env = primary.get("api_key_env") or "MIROSIM_API_KEY"
     if require_key and not env.get(key_env):
         raise ValueError(f"环境变量 {key_env} 没有设置（{tier} 的模型密钥）")
+    flags = {name: primary.get(name) or False for name in ("supports_json_mode", "supports_seed", "allow_http")}
+    for name, value in flags.items():
+        if not isinstance(value, bool):  # 加了引号的 "false" 是非空字符串，按真假值判断会被当成 true
+            raise ValueError(f"模型配置里 {tier} 的 primary.{name} 只能写 true 或 false（不加引号），现在是 {value!r}")
     tier_params = entry.get("params", {})
     params = {"temperature": tier_params.get("temperature") if temperature is None else temperature,
               "top_p": tier_params.get("top_p"), "max_tokens": tier_params.get("max_output_tokens")}
     return OpenAICompatBackend(
         model_id=primary["model_id"], base_url=primary["base_url"], api_key=env.get(key_env, ""),
         params={k: v for k, v in params.items() if v is not None},
-        supports_json_mode=bool(primary.get("supports_json_mode")), supports_seed=bool(primary.get("supports_seed")),
-        allow_http=bool(primary.get("allow_http")), **kwargs)
+        **flags, **kwargs)

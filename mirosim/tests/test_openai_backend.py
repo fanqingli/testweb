@@ -279,3 +279,12 @@ def test_endpoint_and_request_options_are_part_of_the_call_key(tmp_path):
     for change in ({"base_url": "https://b.example.com/v1"}, {"supports_json_mode": True}, {"supports_seed": True},
                    {"params": {"temperature": 0.5}}):
         assert not run(**change).from_recording
+
+
+@pytest.mark.parametrize("name", ["allow_http", "supports_json_mode", "supports_seed"])
+@pytest.mark.parametrize("value", ["false", "true", 1, "no"])
+def test_switches_in_the_model_config_must_be_real_booleans(name, value):
+    cfg = yaml.safe_load((ROOT / "config" / "model_tiers.yaml").read_text(encoding="utf-8"))
+    cfg["tiers"]["tier-economy"]["primary"].update(model_id="m", base_url="http://192.168.1.20:8000/v1", **{name: value})
+    with pytest.raises(ValueError, match=name):
+        from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY})
