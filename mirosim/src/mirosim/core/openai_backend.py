@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import time
@@ -26,7 +27,7 @@ def _http_post(url: str, headers: dict, body: bytes, timeout: float) -> tuple[in
             return response.status, dict(response.headers), response.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers or {}), e.read().decode("utf-8", "replace")
-    except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+    except (OSError, http.client.HTTPException) as e:  # 连不上、超时、连接中途断开
         return 0, {}, str(e)
 
 
@@ -66,9 +67,9 @@ class OpenAICompatBackend:
         try:
             reply = json.loads(text)
             content = reply["choices"][0]["message"].get("content")
+            usage = dict(reply.get("usage") or {})
         except (ValueError, LookupError, TypeError, AttributeError) as e:
             raise BackendError(f"{self.model_id} 的响应不是 chat/completions 格式：{text[:300]}") from e
-        usage = reply.get("usage") or {}
         self.last_usage = {"input_tokens": usage.get("prompt_tokens"), "output_tokens": usage.get("completion_tokens")}
         return content or ""  # 空回答交给上层按不合格处理
 
