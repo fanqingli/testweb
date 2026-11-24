@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -28,10 +27,6 @@ MAX_ATTEMPTS = 2   # 首次调用 + 至多一次重试
 
 def _yaml(path: Path):
     return yaml.safe_load(path.read_text(encoding="utf-8"))
-
-
-def _sha(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def measure_spec(pack_cfg: dict, scales: dict, measure_ids: list[str]) -> dict:
@@ -293,8 +288,8 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
         "experiment_id": x["experiment_id"],
         "model_id": gateway.backend.model_id,
         "seed": seed,
-        "inputs": {"experiment": _sha(experiment_path), "stimulus": _sha(stimulus_path), "frame": _sha(frame_path),
-                   "prompts": {name: _sha(root / "prompts" / f"{name}.md") for name in sorted(templates)}},
+        # 与清单同一份、运行开头算出的 hash：两个文件对“用了哪一版输入”不会有两种说法
+        "inputs": {**locked["inputs"], "prompts": {p["id"]: p["hash"] for p in locked["prompts"]}},
         "personas": {p["persona_id"]: p["version"] for p in personas},
         "variants": variant_ids,
         "replicates": d["replicates"],

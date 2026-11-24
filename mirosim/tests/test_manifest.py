@@ -161,6 +161,9 @@ def test_inputs_edited_while_the_run_is_in_progress_do_not_change_what_the_manif
     experiment, personas = root / "examples" / "experiment.policy.yaml", root / "examples" / "personas"
     run_panel(experiment, personas, out, Gateway(EditsTheFrameMidRun(), out / "recording.jsonl"), root=root)
     assert manifest(out)["inputs"] == manifest(reference)["inputs"]
+    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))["inputs"]
+    assert {k: v for k, v in summary.items() if k != "prompts"} == manifest(out)["inputs"]
+    assert summary["prompts"] == {p["id"]: p["hash"] for p in manifest(out)["prompts"]}
     with pytest.raises(ManifestMismatch, match="frame_hash"):
         run(root, out, replay=True)
 
