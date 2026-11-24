@@ -72,5 +72,6 @@ def draw_sample(frame: dict, personas: list[dict], seed: int) -> dict:
 
 
 def n_eff(weights: list[float]) -> float | None:
-    """有效样本量 (Σw)² / Σw²。"""
-    return round(sum(weights) ** 2 / sum(w * w for w in weights), 2) if weights else None
+    """有效样本量 (Σw)² / Σw²。没有正权重（没有人，或只取到占比为 0 的分群）时为 None。"""
+    squares = sum(w * w for w in weights)
+    return round(sum(weights) ** 2 / squares, 2) if squares else None

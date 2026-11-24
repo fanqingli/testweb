@@ -86,7 +86,15 @@ def test_people_outside_every_segment_are_reported_and_left_out():
 def test_n_eff():
     assert n_eff([1, 1, 1, 1]) == 4
     assert n_eff([3, 1]) == 1.6
-    assert n_eff([]) is None
+    assert n_eff([]) is None and n_eff([0.0, 0.0]) is None
+    assert n_eff([2, 0.0, 2]) == 2
+
+
+def test_sample_from_a_zero_share_segment_only():
+    frame = copy.deepcopy(FRAME)
+    frame["segments"][0]["share"] = 0.0  # rider
+    sample = draw_sample(frame, [RIDER], seed=1)
+    assert sample["members"][0]["weight"] == 0.0 and sample["n_eff"] is None and sample["covered_share"] == 0.0
 
 
 def test_run_writes_the_sample_and_skips_people_outside_the_frame(tmp_path):
