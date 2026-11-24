@@ -64,7 +64,7 @@ python tools/derive_behavior.py examples/personas/p_0a31f7.json --power-gap 0.8
 
 ## 可运行的骨架（群体反应模式）
 
-`src/mirosim/` 下是第一步代码，只为打通流程：确定性随机、公共随机数曝光、调用的录制与回放、反应校验与一次重试、调用预算、配对比较。**后端只有 `mock`，它按种子给出格式合法的随机答案，输出不是模拟结果。**
+`src/mirosim/` 下是第一步代码，只为打通流程：确定性随机、按人群框架取人与加权、公共随机数曝光、调用的录制与回放、反应校验与一次重试、调用预算、配对比较。**后端只有 `mock`，它按种子给出格式合法的随机答案，输出不是模拟结果。**
 
 ```bash
 pip install -e ".[dev]"
@@ -78,7 +78,9 @@ python -m mirosim.cli contrast --run runs/demo \
     --experiment examples/experiment.policy.yaml --measure pol_fair
 ```
 
-骨架里还没有的：真实模型后端、按人群框架抽样与加权（人物直接取自目录）、记忆读取、多模型族、数据库（产物是 `runs/` 下的 JSONL）、`prompts/` 模板的接入（提示词是临时的最小版本）、字数等硬控制、报告。
+**取人与加权。** 运行时按实验配置里的人群框架，从 `--personas` 目录里给每个分群取 `n` 人（同一批人用于所有版本与重复），写出 `sample.jsonl`；`contrast` 同时给出加权与不加权两个数。目录里人数不够时不补人，只在 `summary.json` 的 `sample` 里报告缺口（`shortfall`）和抽到了人的分群占比之和（`covered_share`）。`covered_share` 小于 1 时，加权数字只代表这一部分人群。样例目录只有 3 个人物，所以样例实验的 `covered_share` 远小于 1。
+
+骨架里还没有的：真实模型后端、人物工厂（库内人数不足时补人）、分群内的多样性控制、记忆读取、多模型族、数据库（产物是 `runs/` 下的 JSONL）、`prompts/` 模板的接入（提示词是临时的最小版本）、字数等硬控制、报告。
 
 ## 现状与未做
 

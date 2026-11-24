@@ -1,8 +1,8 @@
 """群体反应模式（骨架）。
 
-已有：公共随机数曝光、录制与回放、反应校验与一次重试、调用预算。
-未做：按人群框架抽样与加权（人物由目录直接给出）、记忆读取、同伴信号、
-多模型族、prompts/ 下模板的接入（这里的提示词是临时的最小版本）、字数等硬控制。
+已有：按人群框架取人与权重、公共随机数曝光、录制与回放、反应校验与一次重试、调用预算。
+未做：记忆读取、同伴信号、多模型族、prompts/ 下模板的接入（这里的提示词是临时的最小版本）、
+字数等硬控制。
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from jsonschema import Draft202012Validator
 from mirosim import NOTICE, ROOT
 from mirosim.core.gateway import Gateway
 from mirosim.core.rng import u01
+from mirosim.experiment.sampling import draw_sample
 from mirosim.persona.behavior import soft_text
 
 K_EXPOSURE = 2.0   # docs/03 §3 的归一化系数
@@ -146,7 +147,15 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
     channel_cfg = _yaml(root / "config" / "channels.yaml")["channels"]
     response_schema = json.loads((root / "schemas" / "response.schema.json").read_text(encoding="utf-8"))
     spec = measure_spec(measures_cfg[x["pack"]], measures_cfg["scales"], x["measures"])
-    personas = load_personas(personas_dir)
+    frame_path = root / x["population"]["frame"]
+    if not frame_path.is_file():
+        raise FileNotFoundError(f"骨架只支持用文件路径引用人群框架：{x['population']['frame']}")
+    library = load_personas(personas_dir)
+    sample = draw_sample(_yaml(frame_path), library, x["design"]["seed"])
+    if not sample["members"]:
+        raise ValueError(f"{personas_dir} 下没有人物符合人群框架 {sample['frame_id']} 的任何分群")
+    in_sample = {m["persona_id"] for m in sample["members"]}
+    personas = [p for p in library if p["persona_id"] in in_sample]
     by_id = {v["variant_id"]: v for v in s["variants"]}
     variant_ids = x["design"].get("variants") or list(by_id)
     seed, d = x["design"]["seed"], x["design"]
@@ -183,17 +192,20 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
     with (out_dir / "responses.jsonl").open("w", encoding="utf-8") as f:
         for rec in responses:
             f.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
+    with (out_dir / "sample.jsonl").open("w", encoding="utf-8") as f:
+        for m in sample["members"]:
+            f.write(json.dumps(m, ensure_ascii=False, sort_keys=True) + "\n")
     summary = {
         "notice": NOTICE,
         "experiment_id": x["experiment_id"],
         "model_id": gateway.backend.model_id,
         "seed": seed,
-        "inputs": {"experiment": _sha(experiment_path), "stimulus": _sha(stimulus_path)},
+        "inputs": {"experiment": _sha(experiment_path), "stimulus": _sha(stimulus_path), "frame": _sha(frame_path)},
         "personas": {p["persona_id"]: p["version"] for p in personas},
         "variants": variant_ids,
         "replicates": d["replicates"],
         "model_families_run": 1,
-        "weighted": False,
+        "sample": {k: v for k, v in sample.items() if k != "members"},
         "responses": len(responses),
         "exposed": sum(r["exposure"]["exposed"] for r in responses),
         "invalid": sum(not r["valid"] for r in responses),

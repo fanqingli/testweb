@@ -50,7 +50,7 @@ def test_replay_is_byte_identical_and_makes_no_calls(tmp_path):
     shutil.copy(tmp_path / "a" / "recording.jsonl", tmp_path / "b" / "recording.jsonl")
     _, gateway = run(POLICY, tmp_path / "b", replay=True)
     assert gateway.live_calls == 0
-    for name in ("responses.jsonl", "summary.json", "recording.jsonl"):
+    for name in ("responses.jsonl", "sample.jsonl", "summary.json", "recording.jsonl"):
         assert (tmp_path / "a" / name).read_bytes() == (tmp_path / "b" / name).read_bytes()
 
 

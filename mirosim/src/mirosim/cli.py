@@ -44,7 +44,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         responses = [json.loads(line) for line in (args.run / "responses.jsonl").read_text(encoding="utf-8").splitlines()]
         stimulus = yaml.safe_load((ROOT / x["stimulus"]).read_text(encoding="utf-8"))
-        result = contrast_table(responses, stimulus, args.measure, seed=x["design"]["seed"])
+        members = [json.loads(line) for line in (args.run / "sample.jsonl").read_text(encoding="utf-8").splitlines()]
+        result = contrast_table(responses, stimulus, args.measure, seed=x["design"]["seed"],
+                                weights={m["persona_id"]: m["weight"] for m in members})
+        result["sample"] = json.loads((args.run / "summary.json").read_text(encoding="utf-8"))["sample"]
         result["notice"] = NOTICE
     print(json.dumps(result, ensure_ascii=False, indent=2))
     print(MOCK_WARNING, file=sys.stderr)
