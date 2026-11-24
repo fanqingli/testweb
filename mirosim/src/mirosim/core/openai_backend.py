@@ -53,6 +53,8 @@ class OpenAICompatBackend:
         if address.scheme != "https" and not (address.scheme == "http" and (allow_http or address.hostname in LOOPBACK)):
             raise ValueError(f"base_url 必须是 https：{base_url}。明文 http 会让密钥和提示词在网络上裸奔，"
                              "只对本机地址放行；内网自建的服务请在模型配置里写 allow_http: true")
+        if address.username or address.password:  # 地址会进 call_key 的参数并写入录制
+            raise ValueError("base_url 里不要带用户名或密码，密钥只放在环境变量里")
         self.model_id, self.url, self._api_key = model_id, base_url.rstrip("/") + "/chat/completions", api_key
         self.params = dict(params or {})
         self.supports_json_mode, self.supports_seed = supports_json_mode, supports_seed

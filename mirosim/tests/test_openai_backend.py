@@ -288,3 +288,9 @@ def test_switches_in_the_model_config_must_be_real_booleans(name, value):
     cfg["tiers"]["tier-economy"]["primary"].update(model_id="m", base_url="http://192.168.1.20:8000/v1", **{name: value})
     with pytest.raises(ValueError, match=name):
         from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY})
+
+
+def test_credentials_in_the_address_are_refused_because_the_address_is_recorded():
+    with pytest.raises(ValueError, match="环境变量") as e:
+        OpenAICompatBackend(model_id="m", base_url=f"https://user:{KEY}@api.example.com/v1", api_key=KEY)
+    assert KEY not in str(e.value)
