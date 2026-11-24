@@ -41,7 +41,9 @@ mirosim/
 ├── config/      MBTI 行为映射表、量表、渠道、模型档位
 ├── prompts/     七份提示词模板：人物系统提示词、群体反应、研讨发言、人物生成、品质探针、主题编码、记忆提交
 ├── examples/    三张人物卡、两个人群框架、三个刺激物、三个实验配置、样例反应与记忆
-└── tools/       validate_examples.py（校验）、derive_behavior.py（行为参数参考实现）
+├── tools/       validate_examples.py（校验）、derive_behavior.py（行为参数的命令行入口）
+├── src/mirosim/ 群体反应模式的骨架代码（见下）
+└── tests/
 ```
 
 ## 马上可以运行的部分
@@ -60,11 +62,29 @@ python tools/derive_behavior.py examples/personas/p_0a31f7.json --power-gap 0.8
 
 `validate_examples.py` 除 schema 校验外，还检查 schema 表达不了的约束：MBTI 类型与轴分值是否一致、渠道是否已定义、安慰剂内容是否与原版本逐字相同、量表项是否属于对应场景包、分群占比是否合计为 1、调用量是否超出预算。实施时把它接进 CI。
 
+## 可运行的骨架（群体反应模式）
+
+`src/mirosim/` 下是第一步代码，只为打通流程：确定性随机、公共随机数曝光、调用的录制与回放、反应校验与一次重试、调用预算、配对比较。**后端只有 `mock`，它按种子给出格式合法的随机答案，输出不是模拟结果。**
+
+```bash
+pip install -e ".[dev]"
+pytest
+
+python -m mirosim.cli run-panel --experiment examples/experiment.policy.yaml \
+    --personas examples/personas --out runs/demo
+python -m mirosim.cli run-panel --experiment examples/experiment.policy.yaml \
+    --personas examples/personas --out runs/demo --replay     # 不发调用，产物逐字节相同
+python -m mirosim.cli contrast --run runs/demo \
+    --experiment examples/experiment.policy.yaml --measure pol_fair
+```
+
+骨架里还没有的：真实模型后端、按人群框架抽样与加权（人物直接取自目录）、记忆读取、多模型族、数据库（产物是 `runs/` 下的 JSONL）、`prompts/` 模板的接入（提示词是临时的最小版本）、字数等硬控制、报告。
+
 ## 现状与未做
 
 | 已有 | 未做 |
 |---|---|
-| 设计文档八份 | 推演引擎、模型网关、分析与报告的代码（`docs/06` §2 列出了模块划分，`docs/07` 给出分期） |
+| 设计文档八份 | 推演引擎、模型网关、分析与报告的代码，除上节的骨架外均未写（`docs/06` §2 列出了模块划分，`docs/07` 给出分期） |
 | 数据契约、配置、提示词模板 | 探针题库（`prompts/trait_probe.md` 给出了格式与样题，54 道题待编写） |
 | 样例数据与校验工具 | 具体模型的选定与单价（`config/model_tiers.yaml` 中留空，第 0 期实测后填写） |
 | 行为参数的参考实现 | 与真实数据的任何对照 |
