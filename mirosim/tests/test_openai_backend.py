@@ -294,3 +294,6 @@ def test_credentials_in_the_address_are_refused_because_the_address_is_recorded(
     with pytest.raises(ValueError, match="环境变量") as e:
         OpenAICompatBackend(model_id="m", base_url=f"https://user:{KEY}@api.example.com/v1", api_key=KEY)
     assert KEY not in str(e.value)
+    with pytest.raises(ValueError) as e:  # 明文地址的报错会引用地址，不能把密码带出来
+        OpenAICompatBackend(model_id="m", base_url=f"http://user:{KEY}@api.example.com/v1", api_key="k")
+    assert KEY not in str(e.value)
