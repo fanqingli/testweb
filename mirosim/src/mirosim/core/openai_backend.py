@@ -10,9 +10,11 @@ import json
 import os
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 RETRY_STATUS = {408, 409, 429, 500, 502, 503, 504}
+LOOPBACK = {"localhost", "127.0.0.1", "::1"}
 
 
 class BackendError(RuntimeError):
@@ -44,9 +46,13 @@ def _http_post(url: str, headers: dict, body: bytes, timeout: float) -> tuple[in
 class OpenAICompatBackend:
     def __init__(self, *, model_id: str, base_url: str, api_key: str, params: dict | None = None,
                  supports_json_mode: bool = False, supports_seed: bool = False, timeout: float = 60,
-                 max_retries: int = 3, transport=_http_post, sleep=None):
+                 max_retries: int = 3, allow_http: bool = False, transport=_http_post, sleep=None):
         if not model_id or not base_url:
             raise ValueError("model_id 与 base_url 不能为空")
+        address = urllib.parse.urlsplit(base_url)
+        if address.scheme != "https" and not (address.scheme == "http" and (allow_http or address.hostname in LOOPBACK)):
+            raise ValueError(f"base_url 必须是 https：{base_url}。明文 http 会让密钥和提示词在网络上裸奔，"
+                             "只对本机地址放行；内网自建的服务请在模型配置里写 allow_http: true")
         self.model_id, self.url, self._api_key = model_id, base_url.rstrip("/") + "/chat/completions", api_key
         self.params = dict(params or {})  # 进 call_key：改了温度等采样参数，不沿用旧答案
         self.supports_json_mode, self.supports_seed = supports_json_mode, supports_seed
@@ -111,4 +117,5 @@ def from_tier(models_cfg: dict, tier: str, *, temperature: float | None = None, 
     return OpenAICompatBackend(
         model_id=primary["model_id"], base_url=primary["base_url"], api_key=env.get(key_env, ""),
         params={k: v for k, v in params.items() if v is not None},
-        supports_json_mode=bool(primary.get("supports_json_mode")), supports_seed=bool(primary.get("supports_seed")), **kwargs)
+        supports_json_mode=bool(primary.get("supports_json_mode")), supports_seed=bool(primary.get("supports_seed")),
+        allow_http=bool(primary.get("allow_http")), **kwargs)

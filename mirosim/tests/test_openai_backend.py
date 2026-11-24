@@ -88,7 +88,7 @@ def test_from_tier_reads_config_and_takes_key_from_env_only():
     cfg = yaml.safe_load((ROOT / "config" / "model_tiers.yaml").read_text(encoding="utf-8"))
     with pytest.raises(ValueError, match="还没有填"):
         from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY})
-    cfg["tiers"]["tier-economy"]["primary"].update(model_id="m", base_url="http://x/v1", api_key_env="MY_KEY")
+    cfg["tiers"]["tier-economy"]["primary"].update(model_id="m", base_url="https://x/v1", api_key_env="MY_KEY")
     with pytest.raises(ValueError, match="MY_KEY"):
         from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY})
     with pytest.raises(ValueError, match="没有档位"):
@@ -251,3 +251,18 @@ def test_redirects_are_refused_so_the_key_never_reaches_another_origin(server):
     finally:
         httpd.shutdown()
     assert Handler.seen == []
+
+
+def test_plain_http_is_only_allowed_for_loopback_or_by_explicit_opt_in():
+    for url in ("http://api.example.com/v1", "http://192.168.1.20:8000/v1", "ftp://x/v1", "api.example.com/v1"):
+        with pytest.raises(ValueError, match="https"):
+            OpenAICompatBackend(model_id="m", base_url=url, api_key=KEY)
+    for url in ("https://api.example.com/v1", "http://localhost:11434/v1", "http://127.0.0.1:8000/v1", "http://[::1]:8000/v1"):
+        OpenAICompatBackend(model_id="m", base_url=url, api_key=KEY)
+    OpenAICompatBackend(model_id="m", base_url="http://192.168.1.20:8000/v1", api_key=KEY, allow_http=True)
+    cfg = yaml.safe_load((ROOT / "config" / "model_tiers.yaml").read_text(encoding="utf-8"))
+    cfg["tiers"]["tier-economy"]["primary"].update(model_id="m", base_url="http://192.168.1.20:8000/v1")
+    with pytest.raises(ValueError, match="allow_http"):
+        from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY})
+    cfg["tiers"]["tier-economy"]["primary"]["allow_http"] = True
+    assert from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY}).url == "http://192.168.1.20:8000/v1/chat/completions"

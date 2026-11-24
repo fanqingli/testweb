@@ -5,6 +5,7 @@
 #   api_key_env         存放密钥的环境变量名，缺省为 MIROSIM_API_KEY；密钥本身不要写进任何文件
 #   supports_json_mode  模型支持 response_format=json_object 才填 true；老模型留空，格式由代码校验与重试保证
 #   supports_seed       模型支持 seed 参数才填 true
+#   allow_http          base_url 是内网自建服务的明文 http 地址时填 true；本机地址不用填，公网地址必须用 https
 version: 1
 tiers:
   tier-economy:
