@@ -46,7 +46,7 @@ def _http_post(url: str, headers: dict, body: bytes, timeout: float) -> tuple[in
 class OpenAICompatBackend:
     def __init__(self, *, model_id: str, base_url: str, api_key: str, params: dict | None = None,
                  supports_json_mode: bool = False, supports_seed: bool = False, timeout: float = 60,
-                 max_retries: int = 3, allow_http: bool = False, transport=_http_post, sleep=None):
+                 max_retries: int = 3, allow_http: bool = False, provider: str = "", transport=_http_post, sleep=None):
         if not model_id or not base_url:
             raise ValueError("model_id 与 base_url 不能为空")
         address = urllib.parse.urlsplit(base_url)
@@ -59,6 +59,7 @@ class OpenAICompatBackend:
         self.params = dict(params or {})
         self.supports_json_mode, self.supports_seed = supports_json_mode, supports_seed
         self.timeout, self.max_retries, self._transport, self._sleep = timeout, max_retries, transport, sleep or time.sleep
+        self.provider = provider or address.hostname or ""  # 写进运行清单
         self.last_usage: dict | None = None
 
     @property
@@ -128,4 +129,4 @@ def from_tier(models_cfg: dict, tier: str, *, temperature: float | None = None, 
     return OpenAICompatBackend(
         model_id=primary["model_id"], base_url=primary["base_url"], api_key=env.get(key_env, ""),
         params={k: v for k, v in params.items() if v is not None},
-        **flags, **kwargs)
+        provider=primary.get("provider") or "", **flags, **kwargs)

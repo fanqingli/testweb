@@ -103,6 +103,7 @@ class MockBackend:
     它的输出不含任何关于人物或方案的信息，不能当作模拟结果。"""
 
     model_id = "mock-v1"
+    provider = "mock"
 
     def complete(self, system: str, user: str, *, seed: int, spec: dict | None = None) -> str:
         if spec is None:
