@@ -7,7 +7,7 @@ name = "mirosim"
 version = "0.0.1"
 description = "MiroSim 平行推演系统（骨架）"
 requires-python = ">=3.10"
-dependencies = ["jsonschema>=4", "pyyaml>=6"]
+dependencies = ["jinja2>=3", "jsonschema>=4", "pyyaml>=6"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]

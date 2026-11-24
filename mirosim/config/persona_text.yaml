@@ -1,0 +1,44 @@
+# 人物卡枚举值写进提示词时的口语说法（prompts/persona_system.md 的渲染规则）。
+# 这些说法是设计初值，改动任何一条都会改变所有人物的系统提示词。
+gender: {male: "男", female: "女", other: "性别不愿多说"}
+education:
+  primary: "小学文化"
+  junior_high: "初中毕业"
+  senior_high: "高中或中专毕业"
+  college: "大专毕业"
+  bachelor: "本科毕业"
+  master_plus: "研究生学历"
+region_tier:
+  tier1: "一线城市"
+  new_tier1: "新一线城市"
+  tier2: "二线城市"
+  tier3_below: "三四线城市"
+  county: "县城"
+  rural: "农村"
+marital: {single: "单身", married: "已婚", divorced: "离异", widowed: "丧偶"}
+employment_type:
+  employee: "给单位上班"
+  self_employed: "自己单干"
+  gig: "按单结算的灵活就业"
+  owner: "自己当老板"
+  student: "在校学生"
+  retired: "已退休"
+  unemployed: "眼下没有工作"
+  homemaker: "在家照顾家庭"
+income_band:
+  lt_50k: "不到五万"
+  50k_100k: "五万到十万"
+  100k_200k: "十来万到二十万"
+  200k_500k: "二十万到五十万"
+  gt_500k: "五十万以上"
+values:
+  self_direction: "自己的事自己拿主意"
+  stimulation: "新鲜和刺激"
+  hedonism: "过得舒服开心"
+  achievement: "做出成绩"
+  power: "地位和说话的分量"
+  security: "安稳"
+  conformity: "守规矩、不出格"
+  tradition: "老规矩和传统"
+  benevolence: "对身边的人好"
+  universalism: "对所有人都公平"
