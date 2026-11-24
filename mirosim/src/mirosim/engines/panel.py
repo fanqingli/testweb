@@ -120,17 +120,22 @@ def user_prompt(template, stimulus: dict, variant: dict, channel: str | None, ch
                 max_chars: int) -> str:
     """版本的编号、标签、角色不进提示词：安慰剂的提示词必须与其对应版本逐字相同。"""
     content = (variant.get("renderings") or {}).get(channel, variant["content"]) if channel else variant["content"]
+    # 刺激物原文在收拾完模板空行之后才填入：原文里的空行是刺激物的一部分，不能动
+    slots = {"\x00background\x00": stimulus["context"]["background"].strip(), "\x00variant\x00": content.strip()}
     text = template.render(
         as_of_date=str(stimulus["context"]["as_of_date"]),
         memories=[], prior_attitude=None, peer_signal=None,  # 记忆、原有态度、同伴信号尚未接入
-        background=stimulus["context"]["background"].strip(),
+        background="\x00background\x00",
         channel_phrase=f"在「{channel_cfg.get(channel, channel)}」" if channel else "",
-        variant_content=content.strip(),
+        variant_content="\x00variant\x00",
         measures=[{"id": mid, "q": m["q"], "format_hint": format_hint(m)} for mid, m in spec["measures"].items()],
         behavior_options=spec["behavior_labels"],
         max_chars=max_chars,
     )
-    return re.sub(r"\n{3,}", "\n\n", text)  # 没接入的段落留下的空行
+    text = re.sub(r"\n{3,}", "\n\n", text)  # 没接入的段落留下的空行
+    for slot, original in slots.items():
+        text = text.replace(slot, original)
+    return text
 
 
 def validate_payload(text: str, spec: dict, payload_schema: dict, max_chars: int | None = None) -> tuple[dict | None, str | None, bool]:

@@ -93,6 +93,13 @@ def test_conditional_question_may_be_left_out_of_the_answer():
                                     applicable_spec(spec, {}, {}), SCHEMA)[1]
 
 
+def test_blank_lines_inside_the_stimulus_reach_the_model_unchanged():
+    spaced = {**STIMULUS["variants"][1], "content": "第一段\n\n\n\n第二段"}
+    tight = {**spaced, "content": "第一段\n\n第二段"}
+    assert "第一段\n\n\n\n第二段" in user(spaced) and user(spaced) != user(tight)
+    assert "\n\n\n" not in user(tight) and "\x00" not in user(tight)
+
+
 def test_template_with_an_unknown_variable_fails_loudly(tmp_path):
     (tmp_path / "prompts").mkdir()
     (tmp_path / "prompts" / "persona_system.md").write_text("```text\n你是{{ nmae }}\n```\n", encoding="utf-8")
