@@ -19,11 +19,21 @@ class BackendError(RuntimeError):
     """模型服务拒绝了请求，或重试后仍然失败。"""
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """不跟随重定向：标准库会把 Authorization 头原样带到重定向的目标，密钥可能被送到别的站点。"""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
 def _http_post(url: str, headers: dict, body: bytes, timeout: float) -> tuple[int, dict, str]:
     """返回 (状态码, 响应头, 正文)；连不上或超时时状态码为 0。"""
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with _OPENER.open(request, timeout=timeout) as response:
             return response.status, dict(response.headers), response.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers or {}), e.read().decode("utf-8", "replace")

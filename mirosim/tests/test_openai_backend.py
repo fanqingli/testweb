@@ -226,3 +226,28 @@ def test_cli_reports_where_it_stopped_when_the_service_fails(tmp_path, capsys, m
                  "--out", str(tmp_path / "run"), "--backend", "openai", "--models", str(models)])
     err = capsys.readouterr().err
     assert code == 1 and "中断" in err and "已完成的 0 次调用" in err and KEY not in err
+
+
+def test_redirects_are_refused_so_the_key_never_reaches_another_origin(server):
+    class Redirect(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.send_response(302)
+            self.send_header("Location", server + "/chat/completions")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        do_GET = do_POST
+
+        def log_message(self, *args):
+            pass
+
+    httpd = HTTPServer(("127.0.0.1", 0), Redirect)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        b = OpenAICompatBackend(model_id="m", base_url=f"http://127.0.0.1:{httpd.server_port}/v1", api_key=KEY)
+        with pytest.raises(BackendError, match="302"):
+            b.complete("s", "u", seed=1)
+    finally:
+        httpd.shutdown()
+    assert Handler.seen == []
