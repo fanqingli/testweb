@@ -1,4 +1,5 @@
 import json
+import shutil
 
 import jinja2
 import pytest
@@ -146,3 +147,25 @@ def test_retry_tells_the_model_what_was_wrong_and_run_marks_truncation(tmp_path)
         limits[r["persona_id"]] = len(r["payload"]["quote"])
     assert len(set(limits.values())) > 1  # 上限因人而异（由 E/I 轴决定）
     assert summary["truncated"] == len(rows) and set(summary["inputs"]["prompts"]) == {"panel_reaction", "persona_system"}
+
+
+def test_placebo_is_asked_the_same_questions_as_its_target(tmp_path):
+    """样例里的安慰剂没有写 attributes；带属性条件的题必须跟着它对应的版本走。"""
+    measures = yaml.safe_load((ROOT / "config" / "measures.yaml").read_text(encoding="utf-8"))
+    measures["policy"]["measures"]["pol_fair"]["ask_if"] = "variant.attributes.appeal exists"
+    root = tmp_path / "root"
+    for sub in ("config", "schemas", "prompts", "examples"):
+        shutil.copytree(ROOT / sub, root / sub)
+    (root / "config" / "measures.yaml").write_text(yaml.safe_dump(measures, allow_unicode=True), encoding="utf-8")
+    backend = Recorder()
+    run_panel(root / "examples" / "experiment.policy.yaml", EX / "personas", tmp_path / "run", Gateway(backend, tmp_path / "recording.jsonl"), root=root)
+    calls = [json.loads(line) for line in (tmp_path / "recording.jsonl").read_text(encoding="utf-8").splitlines()]
+    first = {c["request"]["user"] for c in calls if c["ordinal"] == 0}
+    by_call = {"c_" + c["call_key"][:16]: c["request"]["user"] for c in calls}
+    users = {}
+    for line in (tmp_path / "run" / "responses.jsonl").read_text(encoding="utf-8").splitlines():
+        r = json.loads(line)
+        if r["call_id"]:  # 记的是重试那一次；去掉附在后面的不合格原因就是首次的提示词
+            users.setdefault(r["variant_id"], set()).add(next(u for u in first if by_call[r["call_id"]].startswith(u)))
+    assert users["B"] == users["B_PLACEBO"] and "pol_fair" in next(iter(users["B"]))
+    assert all("- pol_fair：" not in u for u in users["A"])

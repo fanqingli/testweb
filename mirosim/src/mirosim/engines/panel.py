@@ -209,7 +209,9 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
     in_sample = {m["persona_id"] for m in sample["members"]}
     personas = [p for p in library if p["persona_id"] in in_sample]
     by_id = {v["variant_id"]: v for v in s["variants"]}
-    specs = {vid: applicable_spec(spec, s, v) for vid, v in by_id.items()}
+    # 安慰剂按其对应版本的属性决定问哪些题，否则两者的提示词会不同，噪声底就不再是噪声
+    specs = {vid: applicable_spec(spec, s, by_id.get(v.get("placebo_of"), v) if v["role"] == "placebo" else v)
+             for vid, v in by_id.items()}
     variant_ids = x["design"].get("variants") or list(by_id)
     seed, d = x["design"]["seed"], x["design"]
 
