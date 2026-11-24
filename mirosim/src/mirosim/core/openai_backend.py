@@ -54,10 +54,15 @@ class OpenAICompatBackend:
             raise ValueError(f"base_url 必须是 https：{base_url}。明文 http 会让密钥和提示词在网络上裸奔，"
                              "只对本机地址放行；内网自建的服务请在模型配置里写 allow_http: true")
         self.model_id, self.url, self._api_key = model_id, base_url.rstrip("/") + "/chat/completions", api_key
-        self.params = dict(params or {})  # 进 call_key：改了温度等采样参数，不沿用旧答案
+        self.params = dict(params or {})
         self.supports_json_mode, self.supports_seed = supports_json_mode, supports_seed
         self.timeout, self.max_retries, self._transport, self._sleep = timeout, max_retries, transport, sleep or time.sleep
         self.last_usage: dict | None = None
+
+    @property
+    def key_params(self) -> dict:
+        """进 call_key 的内容：凡是会改变请求的配置都在里面，改了其中任何一项都不沿用旧答案。"""
+        return {**self.params, "url": self.url, "json_mode": self.supports_json_mode, "seed_sent": self.supports_seed}
 
     def complete(self, system: str, user: str, *, seed: int, spec: dict | None = None) -> str:
         body = {"model": self.model_id, **self.params,

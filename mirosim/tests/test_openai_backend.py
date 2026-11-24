@@ -266,3 +266,16 @@ def test_plain_http_is_only_allowed_for_loopback_or_by_explicit_opt_in():
         from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY})
     cfg["tiers"]["tier-economy"]["primary"]["allow_http"] = True
     assert from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY}).url == "http://192.168.1.20:8000/v1/chat/completions"
+
+
+def test_endpoint_and_request_options_are_part_of_the_call_key(tmp_path):
+    def run(**kw):
+        b = OpenAICompatBackend(**{"model_id": "m", "base_url": "https://a.example.com/v1", "api_key": KEY,
+                                   "params": {"temperature": 0.9}, "transport": Script(reply()), **kw})
+        return Gateway(b, tmp_path / "rec.jsonl", params=b.key_params).call(system="s", user="u", purpose="p", run_id="r")
+
+    assert not run().from_recording and run().from_recording
+    assert run(api_key="another-key").from_recording  # 换密钥不算换配置
+    for change in ({"base_url": "https://b.example.com/v1"}, {"supports_json_mode": True}, {"supports_seed": True},
+                   {"params": {"temperature": 0.5}}):
+        assert not run(**change).from_recording

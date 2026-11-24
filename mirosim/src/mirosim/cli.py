@@ -53,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             backend = MockBackend()
         budget = x["budget"]
-        gateway = Gateway(backend, args.out / "recording.jsonl", replay=args.replay, params=getattr(backend, "params", None),
+        gateway = Gateway(backend, args.out / "recording.jsonl", replay=args.replay, params=getattr(backend, "key_params", None),
                           max_calls=budget["max_calls"], max_input_tokens=budget.get("max_input_tokens"),
                           max_output_tokens=budget.get("max_output_tokens"))
         try:
