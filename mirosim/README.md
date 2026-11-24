@@ -64,7 +64,7 @@ python tools/derive_behavior.py examples/personas/p_0a31f7.json --power-gap 0.8
 
 ## 可运行的骨架（群体反应模式）
 
-`src/mirosim/` 下是第一步代码，只为打通流程：确定性随机、按人群框架取人与加权、公共随机数曝光、调用的录制与回放、反应校验与一次重试、调用预算、配对比较。**后端只有 `mock`，它按种子给出格式合法的随机答案，输出不是模拟结果。**
+`src/mirosim/` 下是第一步代码，只为打通流程：确定性随机、按人群框架取人与加权、公共随机数曝光、调用的录制与回放、反应校验与一次重试、调用预算、配对比较。**缺省后端是 `mock`，它按种子给出格式合法的随机答案，输出不是模拟结果。** 真实模型走 OpenAI 兼容接口（见下），代码已有，但还没有用任何真实模型联调过。
 
 ```bash
 pip install -e ".[dev]"
@@ -82,7 +82,17 @@ python -m mirosim.cli contrast --run runs/demo \
 
 **提示词。** 系统提示词与用户消息由 `prompts/persona_system.md`、`prompts/panel_reaction.md` 里的模板渲染，人物卡里的枚举值按 `config/persona_text.yaml` 换成口语说法。引语超过该人物的字数上限时由代码截断并记 `truncated`；`ask_if` 条件题由代码决定问不问；不合格的输出带着原因重试一次。
 
-骨架里还没有的：真实模型后端、人物工厂（库内人数不足时补人）、分群内的多样性控制、记忆读取、多模型族、数据库（产物是 `runs/` 下的 JSONL）、发言概率与转述等其余硬控制、报告。
+**真实模型（OpenAI 兼容接口）。** 在 `config/model_tiers.yaml`（或用 `--models` 指定的自己的副本）里给实验所用档位的 `primary` 填上 `model_id` 与 `base_url`，把密钥放进环境变量，然后加 `--backend openai`：
+
+```bash
+export MIROSIM_API_KEY=...      # 密钥只从环境变量读，不进录制，也不要写进任何文件
+python -m mirosim.cli run-panel --experiment examples/experiment.policy.yaml \
+    --personas examples/personas --out runs/real --backend openai
+```
+
+接口按老旧、低价模型来设计：只用 `/chat/completions` 的基本参数，缺省不要求 JSON 模式、不传 `seed`，格式由代码校验与一次重试保证；模型把 JSON 包在代码块里、前后多写了话、或带 `<think>` 推理段，都能读出来。限流、服务端错误和超时会退避重试 3 次；再失败就中断，已完成的调用留在 `recording.jsonl` 里，原样重跑从断点接着做，不重复计费。实验配置里的 `budget`（调用数、输入与输出 token）到线后不再发新调用。调用目前是串行的，人多时会慢。
+
+骨架里还没有的：并发与限流、失败降级到备用模型、人物工厂（库内人数不足时补人）、分群内的多样性控制、记忆读取、多模型族、数据库（产物是 `runs/` 下的 JSONL）、发言概率与转述等其余硬控制、报告。
 
 ## 现状与未做
 

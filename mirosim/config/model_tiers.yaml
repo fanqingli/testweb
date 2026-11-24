@@ -1,10 +1,15 @@
 # 模型档位注册表。代码与提示词只认档位；具体模型在这里映射，换模型只改此文件。
 # 档位定义沿用 v3.0 §9.1。model_id 留空：实施时按当期可用模型与报价填写，并先跑 docs/05 的换模型对比。
+# 目前代码只用到各档位的 primary 与 params，接口是 OpenAI 兼容的 /chat/completions：
+#   base_url            形如 https://服务商域名/v1（不含 /chat/completions）
+#   api_key_env         存放密钥的环境变量名，缺省为 MIROSIM_API_KEY；密钥本身不要写进任何文件
+#   supports_json_mode  模型支持 response_format=json_object 才填 true；老模型留空，格式由代码校验与重试保证
+#   supports_seed       模型支持 seed 参数才填 true
 version: 1
 tiers:
   tier-economy:
     use_for: "群体反应模式的大批量人物调用；备用档"
-    primary:  {provider: "", model_id: "", base_url: "", supports_json_mode: null, supports_seed: null}
+    primary:  {provider: "", model_id: "", base_url: "", api_key_env: "MIROSIM_API_KEY", supports_json_mode: null, supports_seed: null}
     fallback: {provider: "", model_id: "", base_url: ""}
     params:   {temperature: 0.9, top_p: 0.95, max_output_tokens: 600}
   tier-balanced:

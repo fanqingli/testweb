@@ -1,7 +1,7 @@
 """命令行（骨架）。
 
     python -m mirosim.cli run-panel --experiment examples/experiment.policy.yaml \\
-        --personas examples/personas --out runs/demo [--replay]
+        --personas examples/personas --out runs/demo [--replay] [--backend openai]
     python -m mirosim.cli contrast --run runs/demo --experiment examples/experiment.policy.yaml --measure pol_fair
 """
 from __future__ import annotations
@@ -15,7 +15,8 @@ import yaml
 
 from mirosim import NOTICE, ROOT
 from mirosim.analysis.contrast import contrast_table
-from mirosim.core.gateway import Gateway, MockBackend
+from mirosim.core.gateway import BudgetExceeded, Gateway, MockBackend
+from mirosim.core.openai_backend import BackendError, from_tier
 from mirosim.engines.panel import run_panel
 
 MOCK_WARNING = "后端是 mock：答案是按种子生成的随机数，只说明流程走得通，不是模拟结果。"
@@ -29,6 +30,10 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--personas", required=True, type=Path)
     run.add_argument("--out", required=True, type=Path)
     run.add_argument("--replay", action="store_true", help="只读录制，不发调用")
+    run.add_argument("--backend", choices=["mock", "openai"], default="mock",
+                     help="openai：按模型配置调 OpenAI 兼容接口，会产生费用")
+    run.add_argument("--models", type=Path, default=ROOT / "config" / "model_tiers.yaml",
+                     help="模型配置文件，缺省为 config/model_tiers.yaml")
     con = sub.add_parser("contrast", help="对一次运行做配对比较")
     con.add_argument("--run", required=True, type=Path)
     con.add_argument("--experiment", required=True, type=Path)
@@ -37,20 +42,38 @@ def main(argv: list[str] | None = None) -> int:
 
     x = yaml.safe_load(args.experiment.read_text(encoding="utf-8"))
     if args.cmd == "run-panel":
-        gateway = Gateway(MockBackend(), args.out / "recording.jsonl", replay=args.replay,
-                          max_calls=x["budget"]["max_calls"])
-        result = run_panel(args.experiment, args.personas, args.out, gateway)
-        result["live_calls"] = gateway.live_calls
+        if args.backend == "openai":
+            models_cfg = yaml.safe_load(args.models.read_text(encoding="utf-8"))
+            try:
+                backend = from_tier(models_cfg, x["models"]["persona_tier"], temperature=x["models"].get("temperature"),
+                                    require_key=not args.replay)
+            except ValueError as e:
+                print(f"错误：{e}", file=sys.stderr)
+                return 2
+        else:
+            backend = MockBackend()
+        budget = x["budget"]
+        gateway = Gateway(backend, args.out / "recording.jsonl", replay=args.replay, params=getattr(backend, "params", None),
+                          max_calls=budget["max_calls"], max_input_tokens=budget.get("max_input_tokens"),
+                          max_output_tokens=budget.get("max_output_tokens"))
+        try:
+            result = run_panel(args.experiment, args.personas, args.out, gateway)
+        except (BackendError, BudgetExceeded) as e:
+            print(f"中断：{e}\n已完成的 {gateway.recorded_calls} 次调用留在录制里，原样重跑会从断点接着做，不重复计费。", file=sys.stderr)
+            return 1
+        result["live_calls"], result["usage"] = gateway.live_calls, gateway.usage
     else:
         responses = [json.loads(line) for line in (args.run / "responses.jsonl").read_text(encoding="utf-8").splitlines()]
         stimulus = yaml.safe_load((ROOT / x["stimulus"]).read_text(encoding="utf-8"))
         members = [json.loads(line) for line in (args.run / "sample.jsonl").read_text(encoding="utf-8").splitlines()]
         result = contrast_table(responses, stimulus, args.measure, seed=x["design"]["seed"],
                                 weights={m["persona_id"]: m["weight"] for m in members})
-        result["sample"] = json.loads((args.run / "summary.json").read_text(encoding="utf-8"))["sample"]
+        summary = json.loads((args.run / "summary.json").read_text(encoding="utf-8"))
+        result["sample"], result["model_id"] = summary["sample"], summary["model_id"]
         result["notice"] = NOTICE
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    print(MOCK_WARNING, file=sys.stderr)
+    if result["model_id"] == MockBackend.model_id:
+        print(MOCK_WARNING, file=sys.stderr)
     return 0
 
 

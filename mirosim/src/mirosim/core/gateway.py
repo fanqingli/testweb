@@ -1,4 +1,4 @@
-"""模型网关（骨架）：录制与回放。尚无真实模型后端、并发、限流、降级、计量。"""
+"""模型网关（骨架）：录制与回放、调用数与 token 预算。尚无并发、限流、降级。"""
 from __future__ import annotations
 
 import hashlib
@@ -16,7 +16,7 @@ class ReplayMiss(KeyError):
 
 
 class BudgetExceeded(RuntimeError):
-    """实际发出的调用数将超过预算。"""
+    """调用数或 token 用量已到预算。"""
 
 
 class Backend(Protocol):
@@ -44,17 +44,29 @@ def call_key(*, run_id: str, purpose: str, model_id: str, params: dict, system: 
 
 class Gateway:
     def __init__(self, backend: Backend, recording: Path, *, replay: bool = False,
-                 params: dict | None = None, max_calls: int | None = None):
+                 params: dict | None = None, max_calls: int | None = None,
+                 max_input_tokens: int | None = None, max_output_tokens: int | None = None):
         self.backend, self.recording, self.replay = backend, Path(recording), replay
         self.params, self.max_calls = params or {}, max_calls
+        self.max_tokens = {"input_tokens": max_input_tokens, "output_tokens": max_output_tokens}
+        self.usage = {"input_tokens": 0, "output_tokens": 0}  # 录制里全部调用的合计；后端不报用量时不计
         self.live_calls = 0
         self._recorded: dict[str, str] = {}
         if self.recording.exists():
             for line in self.recording.read_text(encoding="utf-8").splitlines():
                 rec = json.loads(line)
                 self._recorded[rec["call_key"]] = rec["response"]
+                self._count(rec.get("usage"))
         elif replay:
             raise FileNotFoundError(self.recording)
+
+    @property
+    def recorded_calls(self) -> int:
+        return len(self._recorded)
+
+    def _count(self, usage: dict | None) -> None:
+        for k in self.usage:
+            self.usage[k] += (usage or {}).get(k) or 0
 
     def call(self, *, system: str, user: str, purpose: str, run_id: str, ordinal: int = 0, seed: int = 0,
              spec: dict | None = None) -> CallResult:
@@ -66,16 +78,23 @@ class Gateway:
             raise ReplayMiss(f"{run_id} #{ordinal}")
         if self.max_calls is not None and len(self._recorded) >= self.max_calls:  # 录制里已有的调用也算
             raise BudgetExceeded(f"录制里已有 {len(self._recorded)} 次调用，预算 {self.max_calls}")
+        for k, limit in self.max_tokens.items():  # 事后计量：到线后不再发新调用，最后一次调用可能略超
+            if limit is not None and self.usage[k] >= limit:
+                raise BudgetExceeded(f"{k} 已用 {self.usage[k]}，预算 {limit}")
         text = self.backend.complete(system, user, seed=seed, spec=spec)
         self.live_calls += 1
+        usage = getattr(self.backend, "last_usage", None)
         rec = {"call_key": key, "run_id": run_id, "purpose": purpose, "model_id": self.backend.model_id,
                "params": self.params, "seed": seed, "ordinal": ordinal, "request": {"system": system, "user": user}, "response": text}
+        if usage:
+            rec["usage"] = usage
         self.recording.parent.mkdir(parents=True, exist_ok=True)
         with self.recording.open("a", encoding="utf-8") as f:  # 写入成功后才把结果交给调用方
             f.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
             f.flush()
             os.fsync(f.fileno())
         self._recorded[key] = text
+        self._count(usage)
         return CallResult(key, text, False)
 
 
