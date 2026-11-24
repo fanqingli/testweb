@@ -37,7 +37,10 @@ def draw_sample(frame: dict, personas: list[dict], seed: int) -> dict:
     权重 w_s = share_s / (n_s / N)，n_s 与 N 取实际抽到的人数。库里没有人的分群不进入加权，
     covered_share 是抽到了人的分群占比之和：它小于 1 时，加权数字只代表这一部分人群。
     """
-    pool: dict[str, list[dict]] = {s["segment_id"]: [] for s in frame["segments"]}
+    ids = [s["segment_id"] for s in frame["segments"]]
+    if len(set(ids)) != len(ids):
+        raise ValueError(f"人群框架 {frame['frame_id']} 的分群编号有重复：{sorted({i for i in ids if ids.count(i) > 1})}")
+    pool: dict[str, list[dict]] = {i: [] for i in ids}
     unmatched = []
     for p in sorted(personas, key=lambda p: p["persona_id"]):
         sid = segment_of(p, frame)

@@ -83,6 +83,13 @@ def test_people_outside_every_segment_are_reported_and_left_out():
     assert [m["persona_id"] for m in sample["members"]] == [RIDER["persona_id"]]
 
 
+def test_duplicate_segment_ids_are_refused():
+    frame = copy.deepcopy(FRAME)
+    frame["segments"][1]["segment_id"] = "rider"
+    with pytest.raises(ValueError, match="rider"):
+        draw_sample(frame, [RIDER, OWNER], seed=1)
+
+
 def test_n_eff():
     assert n_eff([1, 1, 1, 1]) == 4
     assert n_eff([3, 1]) == 1.6
