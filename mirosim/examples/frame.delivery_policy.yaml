@@ -8,6 +8,11 @@ segments:
     filter: {"identity.occupation.industry_code": ["I0603", "I2002"], "identity.occupation.job_family": ["F2"]}
     share: 0.04
     n: 60
+    # 配置人估计，仅作示例
+    marginals:
+      identity.income_band: {lt_50k: 0.15, 50k_100k: 0.60, 100k_200k: 0.25}
+      identity.education: {junior_high: 0.35, senior_high: 0.45, college: 0.20}
+      identity.gender: {male: 0.9, female: 0.1}
     quadrant: appease
     impact: {depth: 5, alternatives: 1, irreversibility: 0.6, basis: "收入与人身安全直接受影响；换行成本高"}
   - segment_id: franchisee
@@ -15,6 +20,9 @@ segments:
     filter: {"identity.occupation.industry_code": ["I0603"], "identity.occupation.job_family": ["F1", "F3"]}
     share: 0.005
     n: 30
+    # 配置人估计，仅作示例
+    marginals:
+      identity.income_band: {100k_200k: 0.40, 200k_500k: 0.45, gt_500k: 0.15}
     quadrant: core
     impact: {depth: 4, alternatives: 2, irreversibility: 0.6, basis: "成本结构变化；合同期内难以退出"}
   - segment_id: merchant
@@ -22,6 +30,9 @@ segments:
     filter: {"identity.occupation.industry_code": ["I0802", "I0803", "I0701"], "identity.occupation.job_family": ["F1", "F3"]}
     share: 0.03
     n: 40
+    # 配置人估计，仅作示例
+    marginals:
+      identity.income_band: {50k_100k: 0.30, 100k_200k: 0.45, 200k_500k: 0.25}
     quadrant: core
     impact: {depth: 3, alternatives: 2, irreversibility: 0.3, basis: "订单量与配送费受影响，可调价对冲"}
   - segment_id: consumer_heavy
@@ -43,6 +54,10 @@ segments:
     filter: {"identity.occupation.industry_code": ["I1702"], "identity.occupation.job_family": ["F5"]}
     share: 0.005
     n: 20
+    # 配置人估计，仅作示例
+    marginals:
+      identity.education: {college: 0.30, bachelor: 0.60, master_plus: 0.10}
+      identity.income_band: {50k_100k: 0.40, 100k_200k: 0.60}
     quadrant: inform
     impact: {depth: 2, alternatives: 4, irreversibility: 0.3, basis: "承担执行责任，无直接利益"}
 diversity:

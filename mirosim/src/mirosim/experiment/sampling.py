@@ -1,6 +1,6 @@
 """按人群框架从人物库里取人，并给出代表性权重（docs/05 §2）。
 
-未做：库内人数不足时由人物工厂补人（缺口只如实报告）、分群内按 spread_fields 拉开差异、
+未做：库内人数不足时自动补人（已有骨架生成器，尚未接入抽样）、分群内按 spread_fields 拉开差异、
 过度使用的人物降权、reuse_min_ratio、按关系成组抽取。
 """
 from __future__ import annotations

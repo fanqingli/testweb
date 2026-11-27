@@ -6,6 +6,100 @@
   "type": "object",
   "required": ["frame_id", "universe", "share_basis", "segments", "diversity", "mbti_prior"],
   "additionalProperties": false,
+  "$defs": {
+    "nonNegativeWeight": {"type": "number", "minimum": 0},
+    "genderMarginal": {
+      "type": "object", "minProperties": 1, "additionalProperties": false,
+      "properties": {
+        "male": {"$ref": "#/$defs/nonNegativeWeight"},
+        "female": {"$ref": "#/$defs/nonNegativeWeight"},
+        "other": {"$ref": "#/$defs/nonNegativeWeight"}
+      },
+      "anyOf": [
+        {"required": ["male"], "properties": {"male": {"exclusiveMinimum": 0}}},
+        {"required": ["female"], "properties": {"female": {"exclusiveMinimum": 0}}},
+        {"required": ["other"], "properties": {"other": {"exclusiveMinimum": 0}}}
+      ]
+    },
+    "educationMarginal": {
+      "type": "object", "minProperties": 1, "additionalProperties": false,
+      "properties": {
+        "primary": {"$ref": "#/$defs/nonNegativeWeight"},
+        "junior_high": {"$ref": "#/$defs/nonNegativeWeight"},
+        "senior_high": {"$ref": "#/$defs/nonNegativeWeight"},
+        "college": {"$ref": "#/$defs/nonNegativeWeight"},
+        "bachelor": {"$ref": "#/$defs/nonNegativeWeight"},
+        "master_plus": {"$ref": "#/$defs/nonNegativeWeight"}
+      },
+      "anyOf": [
+        {"required": ["primary"], "properties": {"primary": {"exclusiveMinimum": 0}}},
+        {"required": ["junior_high"], "properties": {"junior_high": {"exclusiveMinimum": 0}}},
+        {"required": ["senior_high"], "properties": {"senior_high": {"exclusiveMinimum": 0}}},
+        {"required": ["college"], "properties": {"college": {"exclusiveMinimum": 0}}},
+        {"required": ["bachelor"], "properties": {"bachelor": {"exclusiveMinimum": 0}}},
+        {"required": ["master_plus"], "properties": {"master_plus": {"exclusiveMinimum": 0}}}
+      ]
+    },
+    "regionTierMarginal": {
+      "type": "object", "minProperties": 1, "additionalProperties": false,
+      "properties": {
+        "tier1": {"$ref": "#/$defs/nonNegativeWeight"},
+        "new_tier1": {"$ref": "#/$defs/nonNegativeWeight"},
+        "tier2": {"$ref": "#/$defs/nonNegativeWeight"},
+        "tier3_below": {"$ref": "#/$defs/nonNegativeWeight"},
+        "county": {"$ref": "#/$defs/nonNegativeWeight"},
+        "rural": {"$ref": "#/$defs/nonNegativeWeight"}
+      },
+      "anyOf": [
+        {"required": ["tier1"], "properties": {"tier1": {"exclusiveMinimum": 0}}},
+        {"required": ["new_tier1"], "properties": {"new_tier1": {"exclusiveMinimum": 0}}},
+        {"required": ["tier2"], "properties": {"tier2": {"exclusiveMinimum": 0}}},
+        {"required": ["tier3_below"], "properties": {"tier3_below": {"exclusiveMinimum": 0}}},
+        {"required": ["county"], "properties": {"county": {"exclusiveMinimum": 0}}},
+        {"required": ["rural"], "properties": {"rural": {"exclusiveMinimum": 0}}}
+      ]
+    },
+    "incomeBandMarginal": {
+      "type": "object", "minProperties": 1, "additionalProperties": false,
+      "properties": {
+        "lt_50k": {"$ref": "#/$defs/nonNegativeWeight"},
+        "50k_100k": {"$ref": "#/$defs/nonNegativeWeight"},
+        "100k_200k": {"$ref": "#/$defs/nonNegativeWeight"},
+        "200k_500k": {"$ref": "#/$defs/nonNegativeWeight"},
+        "gt_500k": {"$ref": "#/$defs/nonNegativeWeight"}
+      },
+      "anyOf": [
+        {"required": ["lt_50k"], "properties": {"lt_50k": {"exclusiveMinimum": 0}}},
+        {"required": ["50k_100k"], "properties": {"50k_100k": {"exclusiveMinimum": 0}}},
+        {"required": ["100k_200k"], "properties": {"100k_200k": {"exclusiveMinimum": 0}}},
+        {"required": ["200k_500k"], "properties": {"200k_500k": {"exclusiveMinimum": 0}}},
+        {"required": ["gt_500k"], "properties": {"gt_500k": {"exclusiveMinimum": 0}}}
+      ]
+    },
+    "motiveTypeMarginal": {
+      "type": "object", "minProperties": 1, "additionalProperties": false,
+      "properties": {
+        "self_interest": {"$ref": "#/$defs/nonNegativeWeight"},
+        "rational": {"$ref": "#/$defs/nonNegativeWeight"},
+        "impulsive": {"$ref": "#/$defs/nonNegativeWeight"},
+        "herd": {"$ref": "#/$defs/nonNegativeWeight"},
+        "procedural": {"$ref": "#/$defs/nonNegativeWeight"},
+        "idealist": {"$ref": "#/$defs/nonNegativeWeight"},
+        "cautious": {"$ref": "#/$defs/nonNegativeWeight"},
+        "radical": {"$ref": "#/$defs/nonNegativeWeight"}
+      },
+      "anyOf": [
+        {"required": ["self_interest"], "properties": {"self_interest": {"exclusiveMinimum": 0}}},
+        {"required": ["rational"], "properties": {"rational": {"exclusiveMinimum": 0}}},
+        {"required": ["impulsive"], "properties": {"impulsive": {"exclusiveMinimum": 0}}},
+        {"required": ["herd"], "properties": {"herd": {"exclusiveMinimum": 0}}},
+        {"required": ["procedural"], "properties": {"procedural": {"exclusiveMinimum": 0}}},
+        {"required": ["idealist"], "properties": {"idealist": {"exclusiveMinimum": 0}}},
+        {"required": ["cautious"], "properties": {"cautious": {"exclusiveMinimum": 0}}},
+        {"required": ["radical"], "properties": {"radical": {"exclusiveMinimum": 0}}}
+      ]
+    }
+  },
   "properties": {
     "frame_id": {"type": "string", "pattern": "^f_[0-9a-z_]+$"},
     "universe": {"type": "string", "description": "代表的现实人群，一句话"},
@@ -18,6 +112,17 @@
           "segment_id": {"type": "string"},
           "label": {"type": "string"},
           "filter": {"type": "object", "description": "人物卡字段条件，键为点路径，值为允许取值列表", "additionalProperties": {"type": "array"}},
+          "marginals": {
+            "type": "object", "description": "分群内字段的边际分布；省略时均匀抽样",
+            "additionalProperties": false,
+            "properties": {
+              "identity.gender": {"$ref": "#/$defs/genderMarginal"},
+              "identity.education": {"$ref": "#/$defs/educationMarginal"},
+              "identity.region_tier": {"$ref": "#/$defs/regionTierMarginal"},
+              "identity.income_band": {"$ref": "#/$defs/incomeBandMarginal"},
+              "psyche.motive_type": {"$ref": "#/$defs/motiveTypeMarginal"}
+            }
+          },
           "share": {"type": "number", "minimum": 0, "maximum": 1, "description": "该分群在 universe 中的占比，全体合计为 1"},
           "n": {"type": "integer", "minimum": 1, "description": "抽取人数。可与 share 不成比例（小群体超额抽样），分析时用 share/(n/N) 加权"},
           "quadrant": {"enum": ["core", "appease", "inform", "minor"], "description": "政策包：v3.0 §4.3 相关方四象限"},
