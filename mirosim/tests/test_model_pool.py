@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 
 from mirosim import ROOT
 from mirosim.cli import main
@@ -238,6 +238,11 @@ def test_mock_pool_panel_summary_replay_and_by_model_contrast(tmp_path, capsys):
     response_schema = json.loads((ROOT / "schemas" / "response.schema.json").read_text(encoding="utf-8"))
     assert all(not list(Draft202012Validator(response_schema).iter_errors(record))
                for record in response_records)
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    manifest_schema = json.loads((ROOT / "schemas" / "run_manifest.schema.json").read_text(encoding="utf-8"))
+    assert not list(Draft202012Validator(
+        manifest_schema, format_checker=FormatChecker()).iter_errors(manifest))
+    assert {model["tier"] for model in manifest["models"]} == set(POOL)
     assert summary["model_families_run"] == len(summary["models"])
     assert sum(model["personas"] for model in summary["models"].values()) == len(summary["personas"])
 

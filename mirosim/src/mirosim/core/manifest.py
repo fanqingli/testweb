@@ -61,6 +61,7 @@ def locked_sections(*, experiment: dict, root: Path, stimulus_path: Path, frame_
         models = [
             {
                 "member": member,
+                "tier": gateway.tiers_by[member],
                 "provider": getattr(backends[member], "provider", ""),
                 "model_id": backends[member].model_id,
                 "params": gateway.params_by[member],

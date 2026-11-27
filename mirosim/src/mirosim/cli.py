@@ -278,12 +278,14 @@ def main(argv: list[str] | None = None) -> int:
                             require_key=not args.replay)
                         for member in pool_members
                     }
+                    tiers_by = {member: configured[member] for member in pool_members}
                 else:
                     backends = {}
                     for member in pool_members:
                         backend = MockBackend()
                         backend.model_id = f"mock:{member}"
                         backends[member] = backend
+                    tiers_by = {member: member for member in pool_members}
             except ValueError as e:
                 print(f"错误：{e}", file=sys.stderr)
                 return 2
@@ -291,6 +293,7 @@ def main(argv: list[str] | None = None) -> int:
                 recording=args.out / "recording.jsonl",
                 backends=backends,
                 params_by={member: getattr(backend, "key_params", {}) for member, backend in backends.items()},
+                tiers_by=tiers_by,
                 replay=args.replay,
                 max_calls=x["budget"]["max_calls"],
                 max_input_tokens=x["budget"].get("max_input_tokens"),

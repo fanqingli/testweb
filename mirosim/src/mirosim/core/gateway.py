@@ -56,7 +56,8 @@ class Gateway:
                  params: dict | None = None, max_calls: int | None = None,
                  max_input_tokens: int | None = None, max_output_tokens: int | None = None,
                  requests_per_minute: float | None = None, clock=time.monotonic, sleep=time.sleep,
-                 backends: dict[str, Backend] | None = None, params_by: dict[str, dict] | None = None):
+                 backends: dict[str, Backend] | None = None, params_by: dict[str, dict] | None = None,
+                 tiers_by: dict[str, str] | None = None):
         if recording is None:
             raise ValueError("recording 路径必填")
         if (backend is None) == (backends is None):
@@ -72,8 +73,15 @@ class Gateway:
             if set(params_by) != set(backends):
                 raise ValueError("params_by 必须与 backends 使用相同的 member")
             self.params_by = {member: params_by[member] or {} for member in backends}
+            tiers_by = tiers_by or {member: member for member in backends}
+            if set(tiers_by) != set(backends):
+                raise ValueError("tiers_by 必须与 backends 使用相同的 member")
+            self.tiers_by = dict(tiers_by)
         else:
             self.params_by = None
+            if tiers_by is not None:
+                raise ValueError("单后端模式不能设置 tiers_by")
+            self.tiers_by = None
         self.backend, self.recording, self.replay = backend, Path(recording), replay
         self.params, self.max_calls = params or {}, max_calls
         self.backends = backends
