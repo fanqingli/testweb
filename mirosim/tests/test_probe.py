@@ -119,3 +119,12 @@ def test_cli_pool_uses_each_personas_member(tmp_path):
                  "--as-of", "2026-11-22"]) == 0
     report = json.loads((out / "probe_report.json").read_text(encoding="utf-8"))
     assert {k: v["personas"] for k, v in report["by_model"].items()} == {"ds_flash": 1, "kimi": 2}
+
+
+def test_trait_endpoints_are_middle_and_think_block_is_ignored():
+    from mirosim.persona.probe import _parse
+    persona = load_personas(PERSONAS)[0]
+    for value, expected in ((0.35, 0), (0.65, 0), (0.66, 1), (0.34, -1)):
+        persona["psyche"]["traits"]["conformity"] = value
+        assert card_sign(persona, "conformity") == expected
+    assert _parse('<think>先试 {"choice": "A"}</think>{"choice": "B"}') == ("B", None)

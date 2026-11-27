@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -39,11 +40,15 @@ def load_probes(path: Path) -> list[dict]:
 def card_sign(persona: dict, dim: str) -> int:
     """卡上分值的方向。边界轴（|分值|<0.2）与中间特质（0.35–0.65）返回 0，不参与还原度。"""
     value = normalized_inputs(persona)[dim]
-    limit = 0.2 if dim in AXES else 0.3
-    return 0 if abs(value) < limit - 1e-9 else (1 if value > 0 else -1)
+    if dim in AXES:
+        middle = abs(value) < 0.2
+    else:  # 与 soft_text 一致：0.35 与 0.65 本身也算中间档，提示词里不写
+        middle = abs(value) <= 0.3 + 1e-9
+    return 0 if middle else (1 if value > 0 else -1)
 
 
 def _parse(text: str) -> tuple[str | None, str | None]:
+    text = re.sub(r"^\s*<think>.*?</think>", "", text, count=1, flags=re.S)  # 与 panel 一致：开头的推理段不算答案
     try:
         choice = _first_json_object(text).get("choice")
     except ValueError as error:
