@@ -158,6 +158,29 @@ def test_assign_models_cli_persists_and_persona_loader_ignores_assignment(tmp_pa
     assert len(load_personas(personas_dir)) == len(list(personas_dir.glob("p_*.json")))
 
 
+def test_assign_models_atomic_replace_preserves_previous_file(tmp_path, monkeypatch):
+    personas_dir = tmp_path / "personas"
+    personas = _copy_personas(personas_dir)
+    assignments = {persona["persona_id"]: "kimi" for persona in personas}
+    path = personas_dir / "model_assignment.json"
+    original = {"version": 1, "assignments": assignments}
+    original_text = json.dumps(original, sort_keys=True)
+    path.write_text(original_text, encoding="utf-8")
+
+    def fail_replace(source, destination):
+        raise OSError("replace failed")
+
+    monkeypatch.setattr("mirosim.cli.os.replace", fail_replace)
+    with pytest.raises(OSError, match="replace failed"):
+        main([
+            "assign-models", "--personas", str(personas_dir),
+            "--frame", str(EX / "frame.delivery_policy.yaml"), "--seed", "7",
+        ])
+
+    assert path.read_text(encoding="utf-8") == original_text
+    assert not list(personas_dir.glob(".model_assignment.json.*.tmp"))
+
+
 def test_model_pool_tiers_work_without_fallback():
     config = yaml.safe_load((ROOT / "config" / "model_tiers.yaml").read_text(encoding="utf-8"))
     expected = {"ds_flash": "deepseek-flash", "kimi": "kimi-k2.5", "minimax": "MiniMax-M2.5"}

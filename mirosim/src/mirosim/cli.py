@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from collections import Counter
 from datetime import date
 from pathlib import Path
@@ -99,10 +101,23 @@ def main(argv: list[str] | None = None) -> int:
             print(f"错误：{error}", file=sys.stderr)
             return 2
 
-        assignment_path.write_text(json.dumps(
-            {"version": 1, "assignments": assignments}, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        assignment_json = json.dumps(
+            {"version": 1, "assignments": assignments}, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+        temporary_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=assignment_path.parent,
+                prefix=f".{assignment_path.name}.", suffix=".tmp", delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                temporary_file.write(assignment_json)
+            os.replace(temporary_path, assignment_path)
+        finally:
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink()
+                except FileNotFoundError:
+                    pass
         counts = Counter()
         for persona in personas:
             segment_id = segment_of(persona, frame)
