@@ -16,6 +16,7 @@ import urllib.request
 
 RETRY_STATUS = {408, 409, 429, 500, 502, 503, 504}
 LOOPBACK = {"localhost", "127.0.0.1", "::1"}
+RESERVED = {"model", "messages", "temperature", "top_p", "max_tokens", "response_format", "seed", "stream"}
 
 
 class BackendError(RuntimeError):
@@ -46,6 +47,7 @@ def _http_post(url: str, headers: dict, body: bytes, timeout: float) -> tuple[in
 
 class OpenAICompatBackend:
     def __init__(self, *, model_id: str, base_url: str, api_key: str, params: dict | None = None,
+                 extra_body: dict | None = None,
                  supports_json_mode: bool = False, supports_seed: bool = False, timeout: float = 60,
                  max_retries: int = 3, allow_http: bool = False, provider: str = "", transport=_http_post, sleep=None):
         if not model_id or not base_url:
@@ -58,6 +60,7 @@ class OpenAICompatBackend:
                              "只对本机地址放行；内网自建的服务请在模型配置里写 allow_http: true")
         self.model_id, self.url, self._api_key = model_id, base_url.rstrip("/") + "/chat/completions", api_key
         self.params = dict(params or {})
+        self.extra_body = dict(extra_body or {})
         self.supports_json_mode, self.supports_seed = supports_json_mode, supports_seed
         self.timeout, self.max_retries, self._transport, self._sleep = timeout, max_retries, transport, sleep or time.sleep
         self.provider = provider or address.hostname or ""  # 写进运行清单
@@ -75,10 +78,13 @@ class OpenAICompatBackend:
     @property
     def key_params(self) -> dict:
         """进 call_key 的内容：凡是会改变请求的配置都在里面，改了其中任何一项都不沿用旧答案。"""
-        return {**self.params, "url": self.url, "json_mode": self.supports_json_mode, "seed_sent": self.supports_seed}
+        params = {**self.params, "url": self.url, "json_mode": self.supports_json_mode, "seed_sent": self.supports_seed}
+        if self.extra_body:
+            params["extra_body"] = self.extra_body
+        return params
 
     def complete(self, system: str, user: str, *, seed: int, spec: dict | None = None) -> str:
-        body = {"model": self.model_id, **self.params,
+        body = {"model": self.model_id, **self.params, **self.extra_body,
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
         if self.supports_json_mode:
             body["response_format"] = {"type": "json_object"}
@@ -100,11 +106,17 @@ class OpenAICompatBackend:
     def _content(self, text: str) -> str:
         try:
             reply = json.loads(text)
-            content = reply["choices"][0]["message"].get("content")
+            choice = reply["choices"][0]
+            content = choice["message"].get("content")
+            finish_reason = choice.get("finish_reason")
             usage = dict(reply.get("usage") or {})
         except (ValueError, LookupError, TypeError, AttributeError) as e:
             raise BackendError(f"{self.model_id} 的响应不是 chat/completions 格式：{text[:300]}") from e
         self.last_usage = {"input_tokens": usage.get("prompt_tokens"), "output_tokens": usage.get("completion_tokens")}
+        if not (content or "").strip() and finish_reason == "length":
+            raise BackendError(f"{self.model_id} 的输出在 max_tokens={self.params.get('max_tokens')} 处被截断，没有正文。"
+                               "推理模型的思考也计入 max_tokens：调大 params.max_output_tokens，"
+                               "或在 primary.extra_body 里关掉或调低思考")
         return content or ""  # 空回答交给上层按不合格处理
 
 
@@ -133,10 +145,22 @@ def from_tier(models_cfg: dict, tier: str, *, temperature: float | None = None, 
     for name, value in flags.items():
         if not isinstance(value, bool):  # 加了引号的 "false" 是非空字符串，按真假值判断会被当成 true
             raise ValueError(f"模型配置里 {tier} 的 primary.{name} 只能写 true 或 false（不加引号），现在是 {value!r}")
+    extra_body = primary.get("extra_body")
+    if extra_body is None:
+        extra_body = {}
+    elif not isinstance(extra_body, dict):
+        raise ValueError(f"模型配置里 {tier} 的 primary.extra_body 必须是映射，现在是 {extra_body!r}")
+    reserved = sorted(RESERVED.intersection(extra_body))
+    if reserved:
+        raise ValueError(f"模型配置里 {tier} 的 primary.extra_body 不能包含由程序控制的字段：{', '.join(reserved)}")
+    try:
+        extra_body = json.loads(json.dumps(extra_body, ensure_ascii=False))
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"模型配置里 {tier} 的 primary.extra_body 只能包含 JSON 能表示的值：{e}") from e
     tier_params = entry.get("params", {})
     params = {"temperature": tier_params.get("temperature") if temperature is None else temperature,
               "top_p": tier_params.get("top_p"), "max_tokens": tier_params.get("max_output_tokens")}
     return OpenAICompatBackend(
         model_id=primary["model_id"], base_url=primary["base_url"], api_key=env.get(key_env, ""),
         params={k: v for k, v in params.items() if v is not None},
-        provider=primary.get("provider") or "", **flags, **kwargs)
+        extra_body=extra_body, provider=primary.get("provider") or "", **flags, **kwargs)
