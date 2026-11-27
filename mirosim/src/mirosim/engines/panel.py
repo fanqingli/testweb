@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from pathlib import Path
 
 from concurrent.futures import FIRST_EXCEPTION, ThreadPoolExecutor, wait
@@ -203,7 +204,16 @@ def validate_payload(text: str, spec: dict, payload_schema: dict, max_chars: int
 
 
 def load_personas(directory: Path) -> list[dict]:
-    personas = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(Path(directory).glob("*.json"))]
+    directory = Path(directory)
+    paths = sorted(directory.glob("p_*.json"))
+    personas = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
+    if not personas:
+        personas = [
+            document
+            for path in sorted(directory.glob("*.json"))
+            if isinstance((document := json.loads(path.read_text(encoding="utf-8"))), dict)
+            and str(document.get("persona_id", "")).startswith("p_")
+        ]
     if not personas:
         raise FileNotFoundError(f"{directory} 下没有人物卡")
     return sorted(personas, key=lambda p: p["persona_id"])
@@ -262,6 +272,29 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
         raise ValueError(f"{personas_dir} 下没有人物符合人群框架 {sample['frame_id']} 的任何分群")
     in_sample = {m["persona_id"] for m in sample["members"]}
     personas = [p for p in library if p["persona_id"] in in_sample]
+    pool_members = x["models"].get("persona_pool")
+    assignments = {}
+    if pool_members is not None:
+        assignment_path = Path(personas_dir) / "model_assignment.json"
+        if not assignment_path.is_file():
+            raise ValueError(f"{assignment_path} 不存在；请先运行 mirosim assign-models")
+        assignment_doc = json.loads(assignment_path.read_text(encoding="utf-8"))
+        if (not isinstance(assignment_doc, dict) or assignment_doc.get("version") != 1
+                or not isinstance(assignment_doc.get("assignments"), dict)):
+            raise ValueError(f"{assignment_path} 格式无效；请先运行 mirosim assign-models")
+        assignments = assignment_doc["assignments"]
+        missing = [p["persona_id"] for p in personas if p["persona_id"] not in assignments]
+        invalid = [p["persona_id"] for p in personas if assignments.get(p["persona_id"]) not in pool_members]
+        if missing or invalid:
+            details = []
+            if missing:
+                details.append(f"缺少分配：{', '.join(sorted(missing))}")
+            if invalid:
+                details.append(f"member 不在实验池中：{', '.join(sorted(invalid))}")
+            raise ValueError(f"{'；'.join(details)}；请先运行 mirosim assign-models")
+        available_backends = getattr(gateway, "backends", None)
+        if available_backends is None or any(member not in available_backends for member in pool_members):
+            raise ValueError("Gateway 后端与实验 persona_pool 不匹配")
     by_id = {v["variant_id"]: v for v in s["variants"]}
     # 安慰剂按其对应版本的属性决定问哪些题，否则两者的提示词会不同，噪声底就不再是噪声
     specs = {vid: applicable_spec(spec, s, by_id.get(v.get("placebo_of"), v) if v["role"] == "placebo" else v)
@@ -275,6 +308,9 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
 
     locked = manifest.locked_sections(experiment=x, root=root, stimulus_path=stimulus_path, frame_path=frame_path, lock=lock,
                                       config_paths=config_paths, prompt_ids=list(templates), gateway=gateway)
+    if pool_members is not None:
+        locked["inputs"]["persona_model_assignment_hash"] = manifest.sha_json(
+            {p["persona_id"]: assignments[p["persona_id"]] for p in personas})
 
     def write_manifest(created_at: str) -> None:
         m = manifest.build(locked=locked, experiment=x, root=root, gateway=gateway, statuses=statuses, created_at=created_at)
@@ -297,6 +333,10 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
             "persona_id": pid, "persona_version": p["version"], "variant_id": vid, "replicate": replicate,
             "exposure": exp, "call_id": None, "valid": True, "invalid_reason": None,
         }
+        member = assignments.get(pid) if pool_members is not None else None
+        if member is not None:
+            rec["model_member"] = member
+            rec["model_id"] = gateway.backends[member].model_id
         if exp["exposed"]:
             max_chars = hard_params(p, behavior_cfg)["max_chars"]
             system = system_prompt(templates["persona_system"], p, behavior_cfg, text_cfg, s["context"]["as_of_date"])
@@ -304,9 +344,12 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
             reason = None
             for attempt in range(MAX_ATTEMPTS):
                 retry = f"\n\n你上一次的输出不合格：{reason}。请重新只输出一个 JSON 对象。" if attempt else ""
-                result = gateway.call(
+                call_kwargs = dict(
                     system=system, user=user + retry, purpose="persona", run_id=run_id, ordinal=attempt,
                     seed=int(u01(seed, "call", run_id, pid, attempt) * 2**32), spec=specs[vid])
+                if member is not None:
+                    call_kwargs["member"] = member
+                result = gateway.call(**call_kwargs)
                 payload, reason, truncated = validate_payload(result.text, specs[vid], response_schema["properties"]["payload"], max_chars)
                 rec["call_id"] = "c_" + result.call_key[:16]
                 if payload is not None:
@@ -340,7 +383,7 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
     summary = {
         "notice": NOTICE,
         "experiment_id": x["experiment_id"],
-        "model_id": gateway.backend.model_id,
+        **({"model_id": gateway.backend.model_id} if pool_members is None else {}),
         "seed": seed,
         # 与清单同一份、运行开头算出的 hash：两个文件对“用了哪一版输入”不会有两种说法
         "inputs": {**locked["inputs"], "prompts": {p["id"]: p["hash"] for p in locked["prompts"]}},
@@ -354,6 +397,16 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
         "invalid": sum(not r["valid"] for r in responses),
         "truncated": sum(r.get("truncated", False) for r in responses),
     }
+    if pool_members is not None:
+        member_counts = Counter(assignments[p["persona_id"]] for p in personas)
+        summary["models"] = {
+            member: {
+                "model_id": gateway.backends[member].model_id,
+                "personas": member_counts[member],
+            }
+            for member in sorted(member_counts)
+        }
+        summary["model_families_run"] = len(member_counts)
     (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     if not keep_manifest:  # 回放到一个只有录制的目录：成功后补写清单
         (out_dir / "personas.lock.json").write_text(manifest.dump(lock), encoding="utf-8")

@@ -25,6 +25,7 @@ models:
   persona_tier: tier-economy
   analysis_tier: tier-reason
   temperature: 0.9
+  # persona_pool: [ds_flash, kimi, minimax]
 memory: {read: true, top_k: 5, commit_policy: none}
 budget: {max_calls: 18000, max_input_tokens: 40000000, max_output_tokens: 8000000}
 notice: SIMULATION_NOTICE_v1

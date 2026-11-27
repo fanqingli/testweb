@@ -41,20 +41,42 @@ class CallResult:
 
 
 def call_key(*, run_id: str, purpose: str, model_id: str, params: dict, system: str, user: str,
-             ordinal: int, seed: int) -> str:
+             ordinal: int, seed: int, member: str | None = None) -> str:
     """run_id 在键里：安慰剂与其对应版本、同一版本的各次重复，提示词逐字相同，
     但必须是各自独立的调用，否则噪声底恒为零。"""
-    blob = json.dumps([run_id, purpose, model_id, params, seed, system, user, ordinal], ensure_ascii=False, sort_keys=True)
+    parts = [run_id, purpose, model_id, params, seed, system, user, ordinal]
+    if member is not None:
+        parts.append(member)
+    blob = json.dumps(parts, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(blob.encode()).hexdigest()
 
 
 class Gateway:
-    def __init__(self, backend: Backend, recording: Path, *, replay: bool = False,
+    def __init__(self, backend: Backend | None = None, recording: Path | None = None, *, replay: bool = False,
                  params: dict | None = None, max_calls: int | None = None,
                  max_input_tokens: int | None = None, max_output_tokens: int | None = None,
-                 requests_per_minute: float | None = None, clock=time.monotonic, sleep=time.sleep):
+                 requests_per_minute: float | None = None, clock=time.monotonic, sleep=time.sleep,
+                 backends: dict[str, Backend] | None = None, params_by: dict[str, dict] | None = None):
+        if recording is None:
+            raise ValueError("recording 路径必填")
+        if (backend is None) == (backends is None):
+            raise ValueError("必须且只能设置 backend 或 backends")
+        if backends is not None and not backends:
+            raise ValueError("backends 不能为空")
+        if backends is None and params_by is not None:
+            raise ValueError("单后端模式不能设置 params_by")
+        if backends is not None:
+            params_by = params_by or {
+                member: getattr(item, "key_params", {}) for member, item in backends.items()
+            }
+            if set(params_by) != set(backends):
+                raise ValueError("params_by 必须与 backends 使用相同的 member")
+            self.params_by = {member: params_by[member] or {} for member in backends}
+        else:
+            self.params_by = None
         self.backend, self.recording, self.replay = backend, Path(recording), replay
         self.params, self.max_calls = params or {}, max_calls
+        self.backends = backends
         self.max_tokens = {"input_tokens": max_input_tokens, "output_tokens": max_output_tokens}
         self.usage = {"input_tokens": 0, "output_tokens": 0}  # 录制里全部调用的合计；后端不报用量时不计
         self.live_calls = 0
@@ -97,9 +119,17 @@ class Gateway:
             self._stopped = True
 
     def call(self, *, system: str, user: str, purpose: str, run_id: str, ordinal: int = 0, seed: int = 0,
-             spec: dict | None = None) -> CallResult:
-        key = call_key(run_id=run_id, purpose=purpose, model_id=self.backend.model_id, params=self.params,
-                       system=system, user=user, ordinal=ordinal, seed=seed)
+             spec: dict | None = None, member: str | None = None) -> CallResult:
+        if self.backends is None:
+            if member is not None:
+                raise ValueError("单后端模式不能指定 member")
+            backend, params, selected_member = self.backend, self.params, None
+        else:
+            if member not in self.backends:
+                raise ValueError(f"未知或缺失的 model member：{member!r}")
+            backend, params, selected_member = self.backends[member], self.params_by[member], member
+        key = call_key(run_id=run_id, purpose=purpose, model_id=backend.model_id, params=params,
+                       system=system, user=user, ordinal=ordinal, seed=seed, member=selected_member)
         with self._lock:
             if key in self._recorded:
                 return CallResult(key, self._recorded[key], True)
@@ -122,10 +152,12 @@ class Gateway:
                     self._next_send = self._clock() + self._interval
             else:
                 self._check_send()
-            text = self.backend.complete(system, user, seed=seed, spec=spec)
-            usage = getattr(self.backend, "last_usage", None)  # 后端按线程各存一份，见 OpenAICompatBackend
-            rec = {"call_key": key, "run_id": run_id, "purpose": purpose, "model_id": self.backend.model_id,
-                   "params": self.params, "seed": seed, "ordinal": ordinal, "request": {"system": system, "user": user}, "response": text}
+            text = backend.complete(system, user, seed=seed, spec=spec)
+            usage = getattr(backend, "last_usage", None)  # 后端按线程各存一份，见 OpenAICompatBackend
+            rec = {"call_key": key, "run_id": run_id, "purpose": purpose, "model_id": backend.model_id,
+                   "params": params, "seed": seed, "ordinal": ordinal, "request": {"system": system, "user": user}, "response": text}
+            if selected_member is not None:
+                rec["model_member"] = selected_member
             if usage:
                 rec["usage"] = usage
             with self._lock:
