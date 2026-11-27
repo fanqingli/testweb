@@ -1,0 +1,59 @@
+# 特质探针题库 v1：四条轴与五项特质各 6 道情境迫选题，共 54 道。
+# sign=1 表示该做法对应卡上分值的正向（ei: 外向端；sn: 直觉端；tf: 思考端；jp: 判断端；特质：分值高）。
+# 题目是设计者拟的，未经人工审定与实测，正式使用前须审题。
+version: 1
+probes:
+  - {id: ei_01, dim: ei, situation: 同事聚餐，席间聊到一个你有不同看法的话题，大家正说得热闹。, options: {a: {text: 插进去说说你的看法, sign: 1}, b: {text: 先听着，回头单独跟熟的人说, sign: -1}}}
+  - {id: ei_02, dim: ei, situation: 小区业主群里在讨论换物业，有人问大家怎么看。, options: {a: {text: 在群里直接发一段自己的意见, sign: 1}, b: {text: 不在群里说，等有人私下问再讲, sign: -1}}}
+  - {id: ei_03, dim: ei, situation: 忙了一整周，周六终于空下来。, options: {a: {text: 约几个人出去吃饭聊天, sign: 1}, b: {text: 一个人在家待着，谁也不约, sign: -1}}}
+  - {id: ei_04, dim: ei, situation: 参加一个培训，中午休息，周围坐的都是不认识的人。, options: {a: {text: 主动跟旁边的人搭话, sign: 1}, b: {text: 自己吃饭看手机, sign: -1}}}
+  - {id: ei_05, dim: ei, situation: 你听说了一个跟不少熟人都有关的新消息。, options: {a: {text: 马上转给几个人，顺便聊几句, sign: 1}, b: {text: 自己先琢磨，不急着告诉别人, sign: -1}}}
+  - {id: ei_06, dim: ei, situation: 开会时领导问谁有想法，一时没人说话。, options: {a: {text: 先开口，边说边理思路, sign: 1}, b: {text: 等想好了、或者被点到再说, sign: -1}}}
+  - {id: sn_01, dim: sn, situation: 单位发了一份新办法的通知，你拿到手。, options: {a: {text: 先想这事往后会带来什么变化, sign: 1}, b: {text: 先看具体条款：哪天起、怎么算、交什么材料, sign: -1}}}
+  - {id: sn_02, dim: sn, situation: 朋友向你推荐一个新开的店。, options: {a: {text: 问这店的想法有什么不一样, sign: 1}, b: {text: 问地址、价钱、他吃的是哪几样, sign: -1}}}
+  - {id: sn_03, dim: sn, situation: 你要教新来的人上手一件活。, options: {a: {text: 先讲这件活为什么这么做、整体怎么回事, sign: 1}, b: {text: 先带他照着步骤一步步做一遍, sign: -1}}}
+  - {id: sn_04, dim: sn, situation: 看到一条新闻，说某个行业要变。, options: {a: {text: 琢磨这背后的趋势，会不会波及别的行业, sign: 1}, b: {text: 看它有没有具体数字和实例，没有就先放着, sign: -1}}}
+  - {id: sn_05, dim: sn, situation: 家里要添一件大件电器。, options: {a: {text: 更看重它有没有新的用法、以后还能怎么用, sign: 1}, b: {text: 更看重参数、尺寸、别人实际用下来怎么样, sign: -1}}}
+  - {id: sn_06, dim: sn, situation: 有人给你讲一个方案，只讲了大方向，细节还没有。, options: {a: {text: 大方向有意思就愿意接着往下聊, sign: 1}, b: {text: 没有细节没法判断，请他把具体做法补上再谈, sign: -1}}}
+  - {id: tf_01, dim: tf, situation: 同事的方案里有个明显的漏洞，他本人很看重这个方案。, options: {a: {text: 直接指出漏洞在哪里, sign: 1}, b: {text: 先肯定他花的功夫，再绕着提一下, sign: -1}}}
+  - {id: tf_02, dim: tf, situation: 公司要调整排班，有人会因此不方便。, options: {a: {text: 先看哪种排法整体效率高、规则一致, sign: 1}, b: {text: 先看谁家里有难处，尽量照顾到, sign: -1}}}
+  - {id: tf_03, dim: tf, situation: 朋友跟你抱怨被上司批评了。, options: {a: {text: 帮他分析这事他哪里可以改, sign: 1}, b: {text: 先陪他说说，让他把气顺了, sign: -1}}}
+  - {id: tf_04, dim: tf, situation: 两个下属起了争执，都来找你。, options: {a: {text: 按事情本身谁对谁错来断, sign: 1}, b: {text: 先想怎么让两人以后还能一起干活, sign: -1}}}
+  - {id: tf_05, dim: tf, situation: 一项新规定对大多数人有利，但少数人会吃亏。, options: {a: {text: 算总账，利大于弊就该推, sign: 1}, b: {text: 先看吃亏的是哪些人、他们怎么办, sign: -1}}}
+  - {id: tf_06, dim: tf, situation: 亲戚开口借钱，数目不小。, options: {a: {text: 先问清用途和还款打算，再决定, sign: 1}, b: {text: 念着这份情分，能帮就先帮, sign: -1}}}
+  - {id: jp_01, dim: jp, situation: 周末要出门办三件事，其中一件临时说可能办不成。, options: {a: {text: 把顺序和时间重新排一遍再出门, sign: 1}, b: {text: 先出门，到时候看情况, sign: -1}}}
+  - {id: jp_02, dim: jp, situation: 下个月有个假期，打算出去玩几天。, options: {a: {text: 提前把车票、住处、每天去哪儿定好, sign: 1}, b: {text: 定个大概方向，到了当地再说, sign: -1}}}
+  - {id: jp_03, dim: jp, situation: 一项新安排下来，执行日期和细则还没说清。, options: {a: {text: 追着问清楚哪天开始、具体怎么办, sign: 1}, b: {text: 不急，等等看后面怎么变, sign: -1}}}
+  - {id: jp_04, dim: jp, situation: 手上一件事离截止还有两周。, options: {a: {text: 这两天就开始，分几次做完, sign: 1}, b: {text: 先放一放，临近了集中做, sign: -1}}}
+  - {id: jp_05, dim: jp, situation: 几个人商量一件事，讨论了半天还没有结论。, options: {a: {text: 提议现在就把结论定下来, sign: 1}, b: {text: 觉得再多听听，不用急着定, sign: -1}}}
+  - {id: jp_06, dim: jp, situation: 早就约好的聚会，当天有人提议换个时间换个地方。, options: {a: {text: 希望照原来说好的来, sign: 1}, b: {text: 换就换，怎么都行, sign: -1}}}
+  - {id: emotional_stability_01, dim: emotional_stability, situation: 早上看到一条消息，说你常用的一项服务下个月要涨价。, options: {a: {text: 看一眼就过去了，该干嘛干嘛, sign: 1}, b: {text: 心里堵得慌，一上午都在想这事, sign: -1}}}
+  - {id: emotional_stability_02, dim: emotional_stability, situation: 工作上收到一条措辞严厉的批评。, options: {a: {text: 先把事情改了，不太往心里去, sign: 1}, b: {text: 难受好一阵，反复想对方的话, sign: -1}}}
+  - {id: emotional_stability_03, dim: emotional_stability, situation: 排了很久的队，轮到你时被告知今天办不了。, options: {a: {text: 问清楚下次要带什么，改天再来, sign: 1}, b: {text: 当场就上火，要跟对方理论, sign: -1}}}
+  - {id: emotional_stability_04, dim: emotional_stability, situation: 听说单位可能要裁人，名单还没出。, options: {a: {text: 照常上班，等有了准信再说, sign: 1}, b: {text: 这几天睡不踏实，老在打听, sign: -1}}}
+  - {id: emotional_stability_05, dim: emotional_stability, situation: 网上有人对你发的内容说了难听的话。, options: {a: {text: 不理会，划过去, sign: 1}, b: {text: 越想越气，想回几句, sign: -1}}}
+  - {id: emotional_stability_06, dim: emotional_stability, situation: 出门后发现手机没带，今天还有几件事要联系人。, options: {a: {text: 想办法借个电话，把事情办了, sign: 1}, b: {text: 一路都慌，总觉得要误事, sign: -1}}}
+  - {id: risk_tolerance_01, dim: risk_tolerance, situation: 市面上出了一种新的理财产品，身边还没人买过。, options: {a: {text: 拿一小笔钱先试试, sign: 1}, b: {text: 等别人买过、看清楚了再说, sign: -1}}}
+  - {id: risk_tolerance_02, dim: risk_tolerance, situation: 有个新岗位收入可能高不少，但不稳定。, options: {a: {text: 愿意去试一试, sign: 1}, b: {text: 留在现在稳定的位置上, sign: -1}}}
+  - {id: risk_tolerance_03, dim: risk_tolerance, situation: 一家新店开业，卖的东西你没吃过也没听人说过。, options: {a: {text: 进去尝个新鲜, sign: 1}, b: {text: 还是去常去的那家, sign: -1}}}
+  - {id: risk_tolerance_04, dim: risk_tolerance, situation: 平台推出一个新功能，用了可能更省事，也可能出错。, options: {a: {text: 第一批就开通用起来, sign: 1}, b: {text: 等出了一段时间、没问题再用, sign: -1}}}
+  - {id: risk_tolerance_05, dim: risk_tolerance, situation: 朋友拉你合伙做个小生意，前景说不准。, options: {a: {text: 投一部分钱进去试试, sign: 1}, b: {text: 不参与，钱放着踏实, sign: -1}}}
+  - {id: risk_tolerance_06, dim: risk_tolerance, situation: 出门可以走一条没走过的近路，也可以走熟悉的远路。, options: {a: {text: 走近路，走错了再绕回来, sign: 1}, b: {text: 走熟悉的那条, sign: -1}}}
+  - {id: institutional_trust_01, dim: institutional_trust, situation: 官方发布通报，解释一件大家议论纷纷的事。, options: {a: {text: 基本相信通报说的, sign: 1}, b: {text: 觉得多半还有没说的部分, sign: -1}}}
+  - {id: institutional_trust_02, dim: institutional_trust, situation: 一家大企业发声明，说产品问题已经解决。, options: {a: {text: 相信它，继续用, sign: 1}, b: {text: 不太信，先看看别人的反馈, sign: -1}}}
+  - {id: institutional_trust_03, dim: institutional_trust, situation: 街道通知要登记一些个人信息，说是为了方便服务。, options: {a: {text: 按要求登记, sign: 1}, b: {text: 能不填就不填，先问清楚拿去干什么, sign: -1}}}
+  - {id: institutional_trust_04, dim: institutional_trust, situation: 新出的规定说，会有专门的部门监督执行。, options: {a: {text: 相信监督会起作用, sign: 1}, b: {text: 觉得说说而已，落不到实处, sign: -1}}}
+  - {id: institutional_trust_05, dim: institutional_trust, situation: 同一件事，正规媒体的报道和网上流传的说法不一样。, options: {a: {text: 以正规媒体的报道为准, sign: 1}, b: {text: 觉得网上流传的可能更接近实情, sign: -1}}}
+  - {id: institutional_trust_06, dim: institutional_trust, situation: 遇到纠纷，有官方的投诉渠道，也可以自己发到网上。, options: {a: {text: 先走官方投诉渠道, sign: 1}, b: {text: 直接发到网上，觉得这样才有人管, sign: -1}}}
+  - {id: conformity_01, dim: conformity, situation: 同事们都报名了一项活动，你本来兴趣不大。, options: {a: {text: 大家都去，那也报一个, sign: 1}, b: {text: 没兴趣就不报, sign: -1}}}
+  - {id: conformity_02, dim: conformity, situation: 群里多数人都支持一个提议，你有点不同看法。, options: {a: {text: 算了，跟着大家的意见走, sign: 1}, b: {text: 把自己的不同看法说出来, sign: -1}}}
+  - {id: conformity_03, dim: conformity, situation: 买东西时，一款销量很高，一款更合你的需要但买的人少。, options: {a: {text: 买销量高的那款, sign: 1}, b: {text: 买更合自己需要的那款, sign: -1}}}
+  - {id: conformity_04, dim: conformity, situation: 邻居们几乎都装了同一种设备，你觉得自己用处不大。, options: {a: {text: 别人都装了，也装一个, sign: 1}, b: {text: 用不上就不装, sign: -1}}}
+  - {id: conformity_05, dim: conformity, situation: 做决定之前。, options: {a: {text: 先打听周围人都是怎么选的, sign: 1}, b: {text: 按自己的判断来，不太问别人, sign: -1}}}
+  - {id: conformity_06, dim: conformity, situation: 聚会上大家都说某部剧好看，你看了觉得一般。, options: {a: {text: 附和几句，说还不错, sign: 1}, b: {text: 直接说自己觉得一般, sign: -1}}}
+  - {id: price_sensitivity_01, dim: price_sensitivity, situation: 常买的日用品涨了一成。, options: {a: {text: 换个便宜点的牌子, sign: 1}, b: {text: 继续买原来的，不计较, sign: -1}}}
+  - {id: price_sensitivity_02, dim: price_sensitivity, situation: 看中一件东西，过半个月有促销活动。, options: {a: {text: 等到活动再买, sign: 1}, b: {text: 现在就买，省得惦记, sign: -1}}}
+  - {id: price_sensitivity_03, dim: price_sensitivity, situation: 两家店卖同一样东西，远的那家便宜一点，要多走十分钟。, options: {a: {text: 多走十分钟去便宜的那家, sign: 1}, b: {text: 就近买, sign: -1}}}
+  - {id: price_sensitivity_04, dim: price_sensitivity, situation: 下单前。, options: {a: {text: 多打开几个平台比比价, sign: 1}, b: {text: 在常用的平台直接买, sign: -1}}}
+  - {id: price_sensitivity_05, dim: price_sensitivity, situation: 配送费从三块涨到五块。, options: {a: {text: 凑够免配送费的金额，或者干脆自己去拿, sign: 1}, b: {text: 照常下单, sign: -1}}}
+  - {id: price_sensitivity_06, dim: price_sensitivity, situation: 一项会员服务，功能合意，但比同类贵两成。, options: {a: {text: 选便宜些的那个, sign: 1}, b: {text: 选功能合意的，贵点也行, sign: -1}}}

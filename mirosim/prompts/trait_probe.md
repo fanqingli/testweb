@@ -4,18 +4,18 @@
 
 ## 探针题库
 
-每条轴与每项特质配 6 道情境迫选题，共 54 道，存于 `data/probes/v1.yaml`（实施时编写，题目须经人工审定）。
+每条轴与每项特质配 6 道情境迫选题，共 54 道，存于 `config/probes_v1.yaml`（题目须经人工审定）。
 题目不出现性格词汇，只给日常情境与两个都说得通的做法。例：
 
 ```yaml
 - id: ei_03
-  axis: ei
+  dim: ei
   situation: "同事聚餐，席间聊到一个你有不同看法的话题，大家正说得热闹。"
   options:
     a: {text: "插进去说说你的看法", sign: 1}
     b: {text: "先听着，回头单独跟熟的人说", sign: -1}
 - id: jp_02
-  axis: jp
+  dim: jp
   situation: "周末要出门办三件事，其中一件临时说可能办不成。"
   options:
     a: {text: "把顺序和时间重新排一遍再出门", sign: 1}
@@ -32,7 +32,7 @@ B. {{ options.b.text }}
 只输出 JSON：{"choice": "A" 或 "B", "why": "一句话"}
 ```
 
-A/B 的先后由 `u01(seed, persona_id, "probe_order", probe_id)` 决定，抵消位置偏好。
+A/B 的先后由 `u01(seed, persona_id, "probe_order", probe_id)` 决定（两遍用同一先后），抵消位置偏好。
 
 ## 指标
 
@@ -44,6 +44,17 @@ A/B 的先后由 `u01(seed, persona_id, "probe_order", probe_id)` 决定，抵�
 | 库级：轴的可分性 | 全库中，卡上分值与探针得分的 Spearman 相关，分轴计算 | 每轴 ≥ 0.40 |
 
 库级指标不达标的那条轴，说明 `config/mbti_behavior_map.yaml` 里对应的软渲染文字不起作用，要改写映射并升版本，而不是逐个重生成人物。
+
+## 运行
+
+```
+mirosim probe --personas LIB --out RUN --max-calls N [--sessions 2] [--limit K] [--frame F.yaml] \
+              [--backend openai (--tier T | --pool)] [--concurrency 2]
+```
+
+`--pool` 按 `model_assignment.json` 让每个人物用自己的思考模型作答，结果另按模型分列。
+产物：`probe_answers.jsonl`（每人每题每遍一行）、`probe_report.json`（各指标）。
+门槛只作提示，代码不自动重生成或剔除人物。
 
 ## 何时重跑
 

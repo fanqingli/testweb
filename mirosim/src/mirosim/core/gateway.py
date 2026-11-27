@@ -194,6 +194,8 @@ class MockBackend:
         if spec is None:
             raise ValueError("MockBackend 需要题目定义 spec 才能给出格式合法的答案")
         prompt = hashlib.sha256((system + user).encode()).hexdigest()
+        if spec.get("probe"):
+            return json.dumps({"choice": "AB"[int(u01(seed, prompt, "probe") * 2)], "why": "[mock]"}, ensure_ascii=False)
 
         def pick(key: str, n: int) -> int:
             return int(u01(seed, prompt, key) * n)
