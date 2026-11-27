@@ -153,6 +153,10 @@ def from_tier(models_cfg: dict, tier: str, *, temperature: float | None = None, 
     reserved = sorted(RESERVED.intersection(extra_body))
     if reserved:
         raise ValueError(f"模型配置里 {tier} 的 primary.extra_body 不能包含由程序控制的字段：{', '.join(reserved)}")
+    try:
+        extra_body = json.loads(json.dumps(extra_body, ensure_ascii=False))
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"模型配置里 {tier} 的 primary.extra_body 只能包含 JSON 能表示的值：{e}") from e
     tier_params = entry.get("params", {})
     params = {"temperature": tier_params.get("temperature") if temperature is None else temperature,
               "top_p": tier_params.get("top_p"), "max_tokens": tier_params.get("max_output_tokens")}

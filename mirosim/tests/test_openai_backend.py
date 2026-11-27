@@ -8,6 +8,7 @@ import yaml
 from mirosim import ROOT
 from mirosim.cli import main
 from mirosim.core.gateway import BudgetExceeded, Gateway
+from mirosim.core.manifest import check_lock
 from mirosim.core.openai_backend import BackendError, OpenAICompatBackend, from_tier
 from mirosim.engines.panel import run_panel
 
@@ -133,6 +134,28 @@ def test_from_tier_rejects_reserved_extra_body_keys():
     primary.update(model_id="m", base_url="https://x/v1")
     primary["extra_body"] = {"model": "override"}
     with pytest.raises(ValueError, match="model"):
+        from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY})
+
+
+def test_from_tier_normalizes_extra_body_keys_for_manifest_lock(tmp_path):
+    cfg = yaml.safe_load((ROOT / "config" / "model_tiers.yaml").read_text(encoding="utf-8"))
+    primary = cfg["tiers"]["tier-economy"]["primary"]
+    primary.update(model_id="m", base_url="https://x/v1",
+                   extra_body={"logit_bias": {123: 5, "456": 1}})
+    configured = from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY})
+    assert configured.extra_body == {"logit_bias": {"123": 5, "456": 1}}
+
+    locked = {"inputs": {}, "models": [{"params": configured.key_params}], "prompts": []}
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps({**locked, "created_at": "created"}), encoding="utf-8")
+    assert check_lock(path, locked) == "created"
+
+
+def test_from_tier_rejects_non_json_extra_body_values():
+    cfg = yaml.safe_load((ROOT / "config" / "model_tiers.yaml").read_text(encoding="utf-8"))
+    primary = cfg["tiers"]["tier-economy"]["primary"]
+    primary.update(model_id="m", base_url="https://x/v1", extra_body={"unsupported": {1, 2}})
+    with pytest.raises(ValueError, match="只能包含 JSON 能表示的值"):
         from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY})
 
 
