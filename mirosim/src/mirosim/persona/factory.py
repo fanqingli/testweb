@@ -490,9 +490,9 @@ def draw_skeletons(frame: dict, personas: list[dict], behavior_map: dict, seed: 
                 filter_paths = set(segment.get("filter", {}))
                 _apply_region_shifts(skeleton, region_shifts, filter_paths)
                 if segment_of(skeleton, frame) != segment_id:
-                    skeleton = _reroute_skeleton(skeleton, segment, frame, seed, k)
-                    if segment_of(skeleton, frame) != segment_id:
-                        raise ValueError(f"地域修正后分群 {segment_id} 无法按首匹配规则路由")
+                    raise ValueError(
+                        f"地域修正后分群 {segment_id} 落入前序分群，请检查过滤条件或修正表"
+                    )
             _set_path(skeleton, "persona_id", _new_persona_id(seed, frame_id, segment_id, k, used_ids))
             combo = (_get_path(skeleton, "psyche.mbti.type"), _get_path(skeleton, "psyche.motive_type"))
             combos[combo] += 1

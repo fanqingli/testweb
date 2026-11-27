@@ -9,6 +9,7 @@ from jsonschema import Draft202012Validator
 
 from mirosim import ROOT
 from mirosim.cli import main
+from mirosim.core.rng import u01
 from mirosim.engines.panel import load_personas
 from mirosim.experiment.sampling import segment_of
 from mirosim.persona.factory import draw_skeletons
@@ -155,6 +156,18 @@ def test_region_shifts_clip_traits_and_recompute_mbti_axes():
     assert mbti["borderline_axes"] == [axis for axis in ("ei", "sn", "tf", "jp")
                                        if abs(mbti["axes"][axis]) < 0.2]
 
+    shadowed_frame = deepcopy(frame)
+    shadowed_frame["segments"][0]["filter"]["psyche.mbti.type"] = ["ENTJ"]
+    with pytest.raises(ValueError, match="地域修正后分群 rider 落入前序分群"):
+        draw_skeletons(
+            shadowed_frame, [], behavior_map, seed=131,
+            region_shifts=[
+                {"region": "jiangzhe", "field": "psyche.traits.emotional_stability",
+                 "delta": 0.3, "source": "test"},
+                {"region": "jiangzhe", "field": "psyche.mbti.axes.ei", "delta": -0.3, "source": "test"},
+            ],
+        )
+
 
 def test_region_shift_does_not_override_filter_fixed_trait():
     frame = {
@@ -179,6 +192,46 @@ def test_region_shift_does_not_override_filter_fixed_trait():
     )[0]
 
     assert skeleton["psyche"]["traits"]["emotional_stability"] == 0.25
+
+
+def test_region_shift_uses_home_region_after_pre_shift_reroute():
+    frame = {
+        "frame_id": "f_region_reroute",
+        "mbti_prior": {"mode": "uniform"},
+        "segments": [
+            {
+                "segment_id": "jiangzhe",
+                "filter": {"identity.home_region": ["jiangzhe"]},
+                "share": 0.0,
+                "n": 0,
+            },
+            {
+                "segment_id": "target",
+                "filter": {"identity.home_region": ["jiangzhe", "guangdong"]},
+                "share": 1.0,
+                "n": 1,
+            },
+        ],
+    }
+    seed = next(
+        candidate for candidate in range(100)
+        if u01(candidate, "skeleton", frame["frame_id"], "target", 0, "identity.home_region") < 0.5
+    )
+    baseline = draw_skeletons(frame, [], BEHAVIOR_MAP, seed=seed)[0]
+    shifted = draw_skeletons(
+        frame, [], BEHAVIOR_MAP, seed=seed,
+        region_shifts=[
+            {"region": "jiangzhe", "field": "psyche.traits.risk_tolerance",
+             "delta": -0.2, "source": "test"},
+            {"region": "guangdong", "field": "psyche.traits.risk_tolerance",
+             "delta": 0.2, "source": "test"},
+        ],
+    )[0]
+
+    assert baseline["identity"]["home_region"] == shifted["identity"]["home_region"] == "guangdong"
+    assert shifted["psyche"]["traits"]["risk_tolerance"] == pytest.approx(
+        min(1.0, baseline["psyche"]["traits"]["risk_tolerance"] + 0.2)
+    )
 
 
 @pytest.mark.parametrize(("shift", "message"), [
