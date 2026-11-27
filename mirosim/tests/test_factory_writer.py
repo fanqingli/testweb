@@ -171,6 +171,20 @@ def test_writer_records_exhausted_json_failure(tmp_path):
     assert gateway.recorded_calls == 2
 
 
+def test_writer_retries_non_finite_model_values(tmp_path):
+    frame = _frame()
+    payload = _generated("林非有限")
+    payload["media_diet"][0]["share"] = float("nan")
+    backend = FakeBackend([payload, payload])
+    cards, failures, gateway = _writer(
+        _skeletons(frame), frame, backend, tmp_path / "recording.jsonl")
+
+    assert cards == []
+    assert failures[0]["reason"] == "输出含非有限数值"
+    assert "输出含非有限数值" in backend.prompts[1]["user"]
+    assert gateway.recorded_calls == 2
+
+
 def test_writer_rejects_mbti_leak_after_retry(tmp_path):
     frame = _frame()
     payload = _generated("林泄漏")

@@ -529,6 +529,16 @@ def _model_strings(value):
             yield from _model_strings(item)
 
 
+def _has_non_finite(value) -> bool:
+    if isinstance(value, float):
+        return not math.isfinite(value)
+    if isinstance(value, dict):
+        return any(_has_non_finite(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_has_non_finite(item) for item in value)
+    return False
+
+
 def _assemble_persona(skeleton: dict, generated: dict, *, model_id: str, prompt_hash: str,
                       created_at: str, expression_intensity: float) -> dict:
     occupation_fields = ("title", "industry_code", "job_family", "employment_type", "years")
@@ -675,6 +685,9 @@ def write_personas(skeletons: list[dict], gateway, *, library: list[dict], frame
                 generated = _first_json_object(result.text)
             except json.JSONDecodeError as error:
                 reason = f"不是合法的 JSON：{error.msg}"
+                continue
+            if _has_non_finite(generated):
+                reason = "输出含非有限数值"
                 continue
             card = _assemble_persona(
                 skeleton,
