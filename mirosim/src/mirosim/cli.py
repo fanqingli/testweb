@@ -10,6 +10,7 @@ import argparse
 import json
 import sys
 from collections import Counter
+from datetime import date
 from pathlib import Path
 
 import yaml
@@ -117,6 +118,23 @@ def main(argv: list[str] | None = None) -> int:
 
         args.into.mkdir(parents=True, exist_ok=True)
         args.out.mkdir(parents=True, exist_ok=True)
+        factory_path = args.out / "factory.json"
+        if factory_path.exists():
+            factory_meta = json.loads(factory_path.read_text(encoding="utf-8"))
+            created_at = factory_meta.get("created_at") if isinstance(factory_meta, dict) else None
+            if not isinstance(created_at, str) or not created_at:
+                print(f"错误：{factory_path} 缺少有效的 created_at。", file=sys.stderr)
+                return 2
+        else:
+            created_at = date.today().isoformat()
+            if args.replay:
+                print("注意：回放目录没有 factory.json，创建日期使用今天，产物可能与原运行不同。",
+                      file=sys.stderr)
+            else:
+                factory_path.write_text(
+                    json.dumps({"created_at": created_at}, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+                    encoding="utf-8",
+                )
         library = [
             json.loads(path.read_text(encoding="utf-8")) for path in sorted(args.into.glob("*.json"))
         ]
@@ -138,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
                 gateway,
                 library=library,
                 frame=frame,
+                created_at=created_at,
                 concurrency=args.concurrency,
             )
         except (BackendError, BudgetExceeded, Stopped) as error:

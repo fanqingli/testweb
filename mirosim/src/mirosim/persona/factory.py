@@ -9,7 +9,6 @@ import random
 import re
 from collections import Counter
 from copy import deepcopy
-from datetime import date
 from pathlib import Path
 
 import yaml
@@ -626,7 +625,7 @@ def _persona_qa(card: dict, generated: dict, skeleton: dict, frame: dict, schema
 
 
 def write_personas(skeletons: list[dict], gateway, *, library: list[dict], frame: dict,
-                   root: Path = ROOT, concurrency: int = 1) -> tuple[list[dict], list[dict]]:
+                   created_at: str, root: Path = ROOT, concurrency: int = 1) -> tuple[list[dict], list[dict]]:
     if concurrency < 1:
         raise ValueError("concurrency 必须至少为 1")
     root = Path(root)
@@ -638,7 +637,6 @@ def write_personas(skeletons: list[dict], gateway, *, library: list[dict], frame
     template_source = re.search(r"```text\n(.*?)\n```", template_path.read_text(encoding="utf-8"), re.S)
     template_hash = hashlib.sha256(template_source.group(1).encode()).hexdigest()
     model_id = gateway.backend.model_id
-    created_at = date.today().isoformat()
     run_id = f"factory:{frame['frame_id']}"
     segments_by_id = {segment["segment_id"]: segment for segment in frame["segments"]}
     library_names = {persona["identity"]["name"] for persona in library}

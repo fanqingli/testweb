@@ -1,6 +1,7 @@
 import json
 import re
 import shutil
+from datetime import date as real_date
 from copy import deepcopy
 
 import yaml
@@ -90,7 +91,8 @@ def _skeletons(frame, seed=17):
 def _writer(skeletons, frame, backend, recording, *, library=None, concurrency=1):
     gateway = Gateway(backend, recording)
     cards, failures = write_personas(
-        skeletons, gateway, library=library or [], frame=frame, concurrency=concurrency)
+        skeletons, gateway, library=library or [], frame=frame,
+        created_at="2026-01-02", concurrency=concurrency)
     return cards, failures, gateway
 
 
@@ -343,6 +345,9 @@ def test_factory_cli_replay_writes_byte_identical_persona_files(tmp_path, monkey
     first_into, first_run = tmp_path / "first-personas", tmp_path / "first-run"
     assert main(_factory_args(frame_path, skeleton_path, first_into, first_run)) == 0
     capsys.readouterr()
+    assert json.loads((first_run / "factory.json").read_text(encoding="utf-8")) == {
+        "created_at": real_date.today().isoformat()
+    }
 
     second_backend = FakeBackend()
 
@@ -354,6 +359,14 @@ def test_factory_cli_replay_writes_byte_identical_persona_files(tmp_path, monkey
     second_into, second_run = tmp_path / "second-personas", tmp_path / "second-run"
     second_run.mkdir()
     shutil.copyfile(first_run / "recording.jsonl", second_run / "recording.jsonl")
+    shutil.copyfile(first_run / "factory.json", second_run / "factory.json")
+
+    class LaterDate:
+        @classmethod
+        def today(cls):
+            return real_date(2099, 12, 31)
+
+    monkeypatch.setattr("mirosim.cli.date", LaterDate)
     assert main(_factory_args(frame_path, skeleton_path, second_into, second_run, replay=True)) == 0
     capsys.readouterr()
 
@@ -361,6 +374,35 @@ def test_factory_cli_replay_writes_byte_identical_persona_files(tmp_path, monkey
     second_files = sorted(second_into.glob("*.json"))
     assert [path.name for path in first_files] == [path.name for path in second_files]
     assert [path.read_bytes() for path in first_files] == [path.read_bytes() for path in second_files]
+
+
+def test_factory_cli_replay_without_metadata_notes_fallback_date(tmp_path, monkeypatch, capsys):
+    frame = _frame()
+    skeletons = _skeletons(frame)
+    frame_path, skeleton_path = tmp_path / "frame.yaml", tmp_path / "skeletons.jsonl"
+    frame_path.write_text(yaml.safe_dump(frame, allow_unicode=True), encoding="utf-8")
+    skeleton_path.write_text("".join(json.dumps(item) + "\n" for item in skeletons), encoding="utf-8")
+    backend = FakeBackend()
+    monkeypatch.setattr("mirosim.cli.from_tier", lambda models, tier, require_key: backend)
+    first_run = tmp_path / "first-run"
+    assert main(_factory_args(frame_path, skeleton_path, tmp_path / "first-into", first_run)) == 0
+    capsys.readouterr()
+
+    class LaterDate:
+        @classmethod
+        def today(cls):
+            return real_date(2099, 12, 31)
+
+    monkeypatch.setattr("mirosim.cli.date", LaterDate)
+    fallback_run = tmp_path / "fallback-run"
+    fallback_run.mkdir()
+    shutil.copyfile(first_run / "recording.jsonl", fallback_run / "recording.jsonl")
+    assert main(_factory_args(
+        frame_path, skeleton_path, tmp_path / "fallback-into", fallback_run, replay=True)) == 0
+    captured = capsys.readouterr()
+    assert "没有 factory.json" in captured.err
+    card = json.loads(next((tmp_path / "fallback-into").glob("*.json")).read_text(encoding="utf-8"))
+    assert card["provenance"]["created_at"] == "2099-12-31"
 
 
 def test_factory_cli_skips_existing_ids_and_limits_each_segment(tmp_path, monkeypatch, capsys):
