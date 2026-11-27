@@ -185,13 +185,15 @@ def _validate_region_shifts(region_shifts: list | None) -> list[dict]:
     return validated
 
 
-def _apply_region_shifts(skeleton: dict, region_shifts: list[dict]) -> None:
+def _apply_region_shifts(skeleton: dict, region_shifts: list[dict], filter_paths: set[str]) -> None:
     home_region = skeleton["identity"]["home_region"]
     shifted_axis = False
     for shift in region_shifts:
         if shift["region"] != home_region:
             continue
         field = shift["field"]
+        if any(field == path or field.startswith(path + ".") for path in filter_paths):
+            continue
         value = _get_path(skeleton, field)
         is_axis = field.startswith("psyche.mbti.axes.")
         low, high = (-1.0, 1.0) if is_axis else (0.0, 1.0)
@@ -486,7 +488,12 @@ def draw_skeletons(frame: dict, personas: list[dict], behavior_map: dict, seed: 
                 if _get_path(skeleton, "identity.home_region") != original_home_region:
                     _resample_residence_region(skeleton, segment, frame, seed, k)
             if region_shifts:
-                _apply_region_shifts(skeleton, region_shifts)
+                filter_paths = set(segment.get("filter", {}))
+                _apply_region_shifts(skeleton, region_shifts, filter_paths)
+                if segment_of(skeleton, frame) != segment_id:
+                    skeleton = _reroute_skeleton(skeleton, segment, frame, seed, k)
+                    if segment_of(skeleton, frame) != segment_id:
+                        raise ValueError(f"地域修正后分群 {segment_id} 无法按首匹配规则路由")
             _set_path(skeleton, "persona_id", _new_persona_id(seed, frame_id, segment_id, k, used_ids))
             combo = (_get_path(skeleton, "psyche.mbti.type"), _get_path(skeleton, "psyche.motive_type"))
             combos[combo] += 1

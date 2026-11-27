@@ -156,6 +156,31 @@ def test_region_shifts_clip_traits_and_recompute_mbti_axes():
                                        if abs(mbti["axes"][axis]) < 0.2]
 
 
+def test_region_shift_does_not_override_filter_fixed_trait():
+    frame = {
+        "frame_id": "f_region_filter",
+        "mbti_prior": {"mode": "uniform"},
+        "segments": [{
+            "segment_id": "filtered",
+            "filter": {
+                "identity.home_region": ["jiangzhe"],
+                "psyche.traits.emotional_stability": [0.25],
+            },
+            "share": 1.0,
+            "n": 1,
+        }],
+    }
+    skeleton = draw_skeletons(
+        frame, [], BEHAVIOR_MAP, seed=139,
+        region_shifts=[{
+            "region": "jiangzhe", "field": "psyche.traits.emotional_stability",
+            "delta": 0.3, "source": "test",
+        }],
+    )[0]
+
+    assert skeleton["psyche"]["traits"]["emotional_stability"] == 0.25
+
+
 @pytest.mark.parametrize(("shift", "message"), [
     ({"region": "unknown", "field": "psyche.traits.risk_tolerance", "delta": 0.1, "source": "test"}, "未知地域"),
     ({"region": "jiangzhe", "field": "psyche.traits.unknown", "delta": 0.1, "source": "test"}, "未知字段"),
