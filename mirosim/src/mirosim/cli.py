@@ -26,6 +26,7 @@ from mirosim.experiment.model_pool import assign_models
 from mirosim.experiment.sampling import segment_of
 from mirosim.engines.panel import load_personas, run_panel
 from mirosim.persona.factory import draw_skeletons, write_personas
+from mirosim.persona.probe import load_probes, run_probes, score
 
 MOCK_WARNING = "后端是 mock：答案是按种子生成的随机数，只说明流程走得通，不是模拟结果。"
 
@@ -72,7 +73,83 @@ def main(argv: list[str] | None = None) -> int:
     factory.add_argument("--rpm", type=float, default=None)
     factory.add_argument("--max-calls", type=int, default=None)
     factory.add_argument("--replay", action="store_true", help="只读录制，不发调用")
+    probe = sub.add_parser("probe", help="用 54 道情境题检验人物卡上的性格是否体现在选择里")
+    probe.add_argument("--personas", required=True, type=Path)
+    probe.add_argument("--out", required=True, type=Path)
+    probe.add_argument("--max-calls", required=True, type=int, help="调用数上限；每人每遍 54 次，不合格的再加一次")
+    probe.add_argument("--probes", type=Path, default=ROOT / "data" / "probes" / "v1.yaml")
+    probe.add_argument("--frame", type=Path, default=None, help="给了就只在同一分群内比较人物之间的差异")
+    probe.add_argument("--sessions", type=int, choices=[1, 2], default=1, help="2：整套题做两遍，算重测一致性")
+    probe.add_argument("--limit", type=int, default=None, help="只测前 N 个人物")
+    probe.add_argument("--seed", type=int, default=31)
+    probe.add_argument("--as-of", default=str(date.today()), help="算年龄用的日期")
+    probe.add_argument("--backend", choices=["mock", "openai"], default="mock")
+    probe.add_argument("--models", type=Path, default=ROOT / "config" / "model_tiers.yaml")
+    probe.add_argument("--tier", default=None)
+    probe.add_argument("--pool", action="store_true", help="每个人物用 model_assignment.json 里分给他的模型")
+    probe.add_argument("--concurrency", type=int, default=1)
+    probe.add_argument("--rpm", type=float, default=None)
+    probe.add_argument("--replay", action="store_true", help="只读录制，不发调用")
     args = ap.parse_args(argv)
+
+    if args.cmd == "probe":
+        if args.concurrency < 1 or (args.rpm is not None and args.rpm <= 0) or args.max_calls < 1:
+            ap.error("--concurrency、--max-calls 至少为 1，--rpm 必须大于 0")
+        if args.pool == (args.tier is not None) and args.backend == "openai":
+            ap.error("--backend openai 时 --tier 与 --pool 必须且只能给一个")
+        try:
+            probes = load_probes(args.probes)
+            personas = load_personas(args.personas)[:args.limit]
+            assignments, common = None, dict(
+                recording=args.out / "recording.jsonl", replay=args.replay, max_calls=args.max_calls,
+                requests_per_minute=args.rpm)
+            models_cfg = yaml.safe_load(args.models.read_text(encoding="utf-8"))
+            if args.pool:
+                document = json.loads((args.personas / "model_assignment.json").read_text(encoding="utf-8"))
+                assignments = {p["persona_id"]: document["assignments"][p["persona_id"]] for p in personas}
+                tiers_by = {item["member"]: item["tier"] for item in models_cfg["persona_pool"]
+                            if item["member"] in set(assignments.values())}
+                if set(tiers_by) != set(assignments.values()):
+                    raise ValueError("model_assignment.json 里有不在 persona_pool 中的 member")
+                backends = {}
+                for member, tier in tiers_by.items():
+                    if args.backend == "openai":
+                        backends[member] = from_tier(models_cfg, tier, require_key=not args.replay)
+                    else:
+                        backends[member] = MockBackend()
+                        backends[member].model_id = f"mock:{member}"
+                gateway = Gateway(backends=backends, tiers_by=tiers_by, params_by={
+                    member: getattr(backend, "key_params", {}) for member, backend in backends.items()}, **common)
+            else:
+                backend = (from_tier(models_cfg, args.tier, require_key=not args.replay)
+                           if args.backend == "openai" else MockBackend())
+                gateway = Gateway(backend, params=getattr(backend, "key_params", None), **common)
+        except (ValueError, KeyError, FileNotFoundError) as error:
+            print(f"错误：{error}", file=sys.stderr)
+            return 2
+        try:
+            rows = run_probes(personas, probes, gateway, seed=args.seed, as_of_date=args.as_of, sessions=args.sessions,
+                              assignments=assignments, concurrency=args.concurrency)
+        except (BackendError, BudgetExceeded, Stopped) as error:
+            print(f"中断：{error}\n已完成的 {gateway.recorded_calls} 次调用留在录制里，原样重跑会从断点接着做，不重复计费。",
+                  file=sys.stderr)
+            return 1
+        groups = None
+        if args.frame is not None:
+            frame = yaml.safe_load(args.frame.read_text(encoding="utf-8"))
+            groups = {p["persona_id"]: segment_of(p, frame) for p in personas}
+        report = score(rows, personas, groups)
+        report["notice"], report["live_calls"], report["usage"] = NOTICE, gateway.live_calls, gateway.usage
+        (args.out / "probe_answers.jsonl").write_text(
+            "".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in rows), encoding="utf-8")
+        (args.out / "probe_report.json").write_text(
+            json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        print("persona_id\ttrait_recovery\tretest\tdistinct\tinvalid")
+        for pid, entry in report["personas"].items():
+            print(f"{pid}\t{entry['trait_recovery']}\t{entry.get('retest_consistency')}\t{entry['distinctiveness']}\t{entry['invalid']}")
+        print("separability\t" + "\t".join(f"{dim}={value}" for dim, value in report["separability"].items()))
+        print(f"usage\tlive_calls={gateway.live_calls}\trecorded_calls={gateway.recorded_calls}")
+        return 0
 
     if args.cmd == "assign-models":
         try:
