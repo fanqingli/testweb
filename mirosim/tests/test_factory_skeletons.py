@@ -136,7 +136,7 @@ def test_skeletons_match_segments_and_schema_ranges(frame_path):
         assert len(set(skeleton["psyche"]["values_top3"])) == 3
         assert all(value in psyche_schema["values_top3"]["items"]["enum"] for value in skeleton["psyche"]["values_top3"])
         assert skeleton["initial_lean"] in ("support", "oppose", "conditional", "indifferent")
-        assert set(skeleton["priors"].values()) <= {"uniform", "filter", "table", "stratified_uniform"}
+        assert set(skeleton["priors"].values()) <= {"uniform", "filter", "table", "stratified_uniform", "rerouted"}
 
 
 def test_rotation_coverage_stance_spread_and_combo_cap():

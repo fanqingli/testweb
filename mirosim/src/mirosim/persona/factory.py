@@ -7,6 +7,7 @@ import json
 import math
 import random
 from collections import Counter
+from copy import deepcopy
 
 from mirosim import ROOT
 from mirosim.core.rng import u01
@@ -25,7 +26,6 @@ _VALUES = _PSYCHE_PROPERTIES["values_top3"]["items"]["enum"]
 _AXES = {"ei": (0, "E"), "sn": (1, "N"), "tf": (2, "T"), "jp": (3, "J")}
 _TRAITS = ("emotional_stability", "risk_tolerance", "institutional_trust", "conformity", "price_sensitivity")
 _MBTI_TYPES = ["".join(letters) for letters in itertools.product("EI", "SN", "TF", "JP")]
-MAX_FILTER_ATTEMPTS = 20
 _ENUM_FIELDS = {
     "identity.gender": _GENDERS,
     "identity.education": _EDUCATION,
@@ -39,6 +39,7 @@ _MARGINAL_FIELDS = {
     "identity.income_band": _INCOMES,
     "psyche.motive_type": _MOTIVES,
 }
+_REROUTABLE_ENUM_FIELDS = set(_ENUM_FIELDS) | set(_MARGINAL_FIELDS)
 
 
 def _get_path(document: dict, path: str):
@@ -139,13 +140,12 @@ def _new_persona_id(seed: int, frame_id: str, segment_id: str, k: int, used_ids:
     raise ValueError("无法为人物骨架生成不重复的 persona_id")
 
 
-def _set_filter_fields(skeleton: dict, segment: dict, seed: int, frame_id: str, k: int, priors: dict,
-                       attempt: int = 0) -> set[str]:
+def _set_filter_fields(skeleton: dict, segment: dict, seed: int, frame_id: str, k: int, priors: dict) -> set[str]:
     paths = set(segment.get("filter", {}))
     for path, allowed in segment.get("filter", {}).items():
         if not allowed:
             raise ValueError(f"{segment['segment_id']} 的过滤字段 {path} 没有允许值")
-        index = min(int(u01(seed, "skeleton", frame_id, segment["segment_id"], k, path, attempt) * len(allowed)),
+        index = min(int(u01(seed, "skeleton", frame_id, segment["segment_id"], k, path) * len(allowed)),
                     len(allowed) - 1)
         value = allowed[index]
         if _is_array_path(path):
@@ -153,6 +153,58 @@ def _set_filter_fields(skeleton: dict, segment: dict, seed: int, frame_id: str, 
         _set_path(skeleton, path, value)
         priors[path] = "filter"
     return paths
+
+
+def _product_at(index: int, domains: list[list]) -> list:
+    values = []
+    for domain in reversed(domains):
+        index, value_index = divmod(index, len(domain))
+        values.append(domain[value_index])
+    return list(reversed(values))
+
+
+def _reroute_skeleton(skeleton: dict, segment: dict, frame: dict, seed: int, k: int) -> dict:
+    segment_index = next(i for i, item in enumerate(frame["segments"]) if item["segment_id"] == segment["segment_id"])
+    target_filter = segment.get("filter", {})
+    previous_paths = {
+        path for earlier in frame["segments"][:segment_index] for path in earlier.get("filter", {})
+    }
+    paths = set(target_filter) | {
+        path for path in previous_paths if path in _REROUTABLE_ENUM_FIELDS
+    }
+    marginals = segment.get("marginals", {})
+    ordered_paths = []
+    domains = []
+    for path in sorted(paths):
+        if path in target_filter:
+            domain = target_filter[path]
+        else:
+            marginal = marginals.get(path)
+            enum = _MARGINAL_FIELDS.get(path) if marginal is not None else _ENUM_FIELDS.get(path)
+            enum = enum or _MARGINAL_FIELDS.get(path)
+            if enum is None:
+                continue
+            domain = [value for value in enum if marginal.get(value, 0) > 0] if marginal is not None else enum
+        unique = []
+        for value in domain:
+            if value not in unique:
+                unique.append(value)
+        if not unique:
+            raise ValueError(f"{segment['segment_id']} 的过滤字段 {path} 没有可达取值")
+        ordered_paths.append(path)
+        domains.append(unique)
+
+    total = math.prod(len(domain) for domain in domains)
+    offset = int(u01(seed, "skeleton", frame["frame_id"], segment["segment_id"], k, "reroute.offset") * total)
+    for step in range(min(total, 4096)):
+        candidate = deepcopy(skeleton)
+        for path, value in zip(ordered_paths, _product_at((offset + step) % total, domains)):
+            if path not in target_filter and _get_path(candidate, path) != ([value] if _is_array_path(path) else value):
+                candidate["priors"][path] = "rerouted"
+            _set_path(candidate, path, [value] if _is_array_path(path) else value)
+        if segment_of(candidate, frame) == segment["segment_id"]:
+            return candidate
+    raise ValueError(f"分群 {segment['segment_id']} 对所有可达取值均被前序分群遮蔽，无法按首匹配规则路由")
 
 
 def _sample_axes(skeleton: dict, frame_id: str, segment_id: str, k: int, seed: int, sampling: dict,
@@ -195,10 +247,10 @@ def _sample_axes(skeleton: dict, frame_id: str, segment_id: str, k: int, seed: i
 
 
 def _fill_skeleton(skeleton: dict, segment: dict, frame: dict, behavior_map: dict, seed: int, k: int,
-                   shortfall: int, birth_bins: list[int], combo_counts: Counter, filter_attempt: int) -> dict:
+                   shortfall: int, birth_bins: list[int], combo_counts: Counter) -> dict:
     frame_id, segment_id = frame["frame_id"], segment["segment_id"]
     marginals = segment.get("marginals", {})
-    filter_paths = _set_filter_fields(skeleton, segment, seed, frame_id, k, skeleton["priors"], filter_attempt)
+    filter_paths = _set_filter_fields(skeleton, segment, seed, frame_id, k, skeleton["priors"])
 
     for path, values in _ENUM_FIELDS.items():
         if path in filter_paths:
@@ -320,23 +372,19 @@ def draw_skeletons(frame: dict, personas: list[dict], behavior_map: dict, seed: 
             if mbti_type is not None and motive is not None:
                 combos[(mbti_type, motive)] += 1
         for k in range(shortfall):
-            for attempt in range(MAX_FILTER_ATTEMPTS):
-                skeleton = {
-                    "persona_id": "",
-                    "frame_id": frame_id,
-                    "segment_id": segment_id,
-                    "initial_lean": "",
-                    "identity": {"occupation": {}},
-                    "psyche": {"mbti": {}, "traits": {}},
-                    "situation": {},
-                    "priors": {},
-                }
-                _fill_skeleton(skeleton, segment, frame, behavior_map, seed, k, shortfall,
-                               birth_bins, combos, attempt)
-                if segment_of(skeleton, frame) == segment_id:
-                    break
-            else:
-                raise ValueError(f"分群 {segment_id} 的过滤条件被前序分群遮蔽，无法按首匹配规则路由")
+            skeleton = {
+                "persona_id": "",
+                "frame_id": frame_id,
+                "segment_id": segment_id,
+                "initial_lean": "",
+                "identity": {"occupation": {}},
+                "psyche": {"mbti": {}, "traits": {}},
+                "situation": {},
+                "priors": {},
+            }
+            _fill_skeleton(skeleton, segment, frame, behavior_map, seed, k, shortfall, birth_bins, combos)
+            if segment_of(skeleton, frame) != segment_id:
+                skeleton = _reroute_skeleton(skeleton, segment, frame, seed, k)
             _set_path(skeleton, "persona_id", _new_persona_id(seed, frame_id, segment_id, k, used_ids))
             combo = (_get_path(skeleton, "psyche.mbti.type"), _get_path(skeleton, "psyche.motive_type"))
             combos[combo] += 1
