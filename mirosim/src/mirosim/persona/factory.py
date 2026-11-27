@@ -25,6 +25,7 @@ _VALUES = _PSYCHE_PROPERTIES["values_top3"]["items"]["enum"]
 _AXES = {"ei": (0, "E"), "sn": (1, "N"), "tf": (2, "T"), "jp": (3, "J")}
 _TRAITS = ("emotional_stability", "risk_tolerance", "institutional_trust", "conformity", "price_sensitivity")
 _MBTI_TYPES = ["".join(letters) for letters in itertools.product("EI", "SN", "TF", "JP")]
+MAX_FILTER_ATTEMPTS = 20
 _ENUM_FIELDS = {
     "identity.gender": _GENDERS,
     "identity.education": _EDUCATION,
@@ -138,12 +139,13 @@ def _new_persona_id(seed: int, frame_id: str, segment_id: str, k: int, used_ids:
     raise ValueError("无法为人物骨架生成不重复的 persona_id")
 
 
-def _set_filter_fields(skeleton: dict, segment: dict, seed: int, frame_id: str, k: int, priors: dict) -> set[str]:
+def _set_filter_fields(skeleton: dict, segment: dict, seed: int, frame_id: str, k: int, priors: dict,
+                       attempt: int = 0) -> set[str]:
     paths = set(segment.get("filter", {}))
     for path, allowed in segment.get("filter", {}).items():
         if not allowed:
             raise ValueError(f"{segment['segment_id']} 的过滤字段 {path} 没有允许值")
-        index = min(int(u01(seed, "skeleton", frame_id, segment["segment_id"], k, path) * len(allowed)),
+        index = min(int(u01(seed, "skeleton", frame_id, segment["segment_id"], k, path, attempt) * len(allowed)),
                     len(allowed) - 1)
         value = allowed[index]
         if _is_array_path(path):
@@ -193,13 +195,10 @@ def _sample_axes(skeleton: dict, frame_id: str, segment_id: str, k: int, seed: i
 
 
 def _fill_skeleton(skeleton: dict, segment: dict, frame: dict, behavior_map: dict, seed: int, k: int,
-                   shortfall: int, enum_permutations: dict, mbti_permutation: list[str],
-                   motive_permutation: list[str], birth_bins: list[int], combo_counts: Counter,
-                   used_ids: set[str]) -> dict:
+                   shortfall: int, birth_bins: list[int], combo_counts: Counter, filter_attempt: int) -> dict:
     frame_id, segment_id = frame["frame_id"], segment["segment_id"]
-    filters = segment.get("filter", {})
     marginals = segment.get("marginals", {})
-    filter_paths = _set_filter_fields(skeleton, segment, seed, frame_id, k, skeleton["priors"])
+    filter_paths = _set_filter_fields(skeleton, segment, seed, frame_id, k, skeleton["priors"], filter_attempt)
 
     for path, values in _ENUM_FIELDS.items():
         if path in filter_paths:
@@ -289,9 +288,6 @@ def _fill_skeleton(skeleton: dict, segment: dict, frame: dict, behavior_map: dic
                   _rotated_value(_LEANINGS, seed, frame_id, segment_id, "initial_lean", k))
         skeleton["priors"]["initial_lean"] = "stratified_uniform"
 
-    _set_path(skeleton, "persona_id", _new_persona_id(seed, frame_id, segment_id, k, used_ids))
-    combo = (_get_path(skeleton, mbti_path), _get_path(skeleton, motive_path))
-    combo_counts[combo] += 1
     return skeleton
 
 
@@ -310,19 +306,12 @@ def draw_skeletons(frame: dict, personas: list[dict], behavior_map: dict, seed: 
 
     used_ids = {persona.get("persona_id") for persona in personas}
     results = []
-    enum_fields = {**_ENUM_FIELDS, "initial_lean": _LEANINGS}
     for segment in segments:
         segment_id = segment["segment_id"]
         existing = existing_by_segment[segment_id]
         shortfall = max(0, int(segment["n"]) - len(existing))
         if not shortfall:
             continue
-        enum_permutations = {
-            field: _permutation(values, seed, frame_id, segment_id, field)
-            for field, values in enum_fields.items()
-        }
-        mbti_permutation = _permutation(_MBTI_TYPES, seed, frame_id, segment_id, "psyche.mbti.type")
-        motive_permutation = _permutation(_MOTIVES, seed, frame_id, segment_id, "psyche.motive_type")
         birth_bins = _permutation(range(shortfall), seed, frame_id, segment_id, "identity.birth_year.bins")
         combos = Counter()
         for persona in existing:
@@ -331,17 +320,25 @@ def draw_skeletons(frame: dict, personas: list[dict], behavior_map: dict, seed: 
             if mbti_type is not None and motive is not None:
                 combos[(mbti_type, motive)] += 1
         for k in range(shortfall):
-            skeleton = {
-                "persona_id": "",
-                "frame_id": frame_id,
-                "segment_id": segment_id,
-                "initial_lean": "",
-                "identity": {"occupation": {}},
-                "psyche": {"mbti": {}, "traits": {}},
-                "situation": {},
-                "priors": {},
-            }
-            results.append(_fill_skeleton(
-                skeleton, segment, frame, behavior_map, seed, k, shortfall, enum_permutations,
-                mbti_permutation, motive_permutation, birth_bins, combos, used_ids))
+            for attempt in range(MAX_FILTER_ATTEMPTS):
+                skeleton = {
+                    "persona_id": "",
+                    "frame_id": frame_id,
+                    "segment_id": segment_id,
+                    "initial_lean": "",
+                    "identity": {"occupation": {}},
+                    "psyche": {"mbti": {}, "traits": {}},
+                    "situation": {},
+                    "priors": {},
+                }
+                _fill_skeleton(skeleton, segment, frame, behavior_map, seed, k, shortfall,
+                               birth_bins, combos, attempt)
+                if segment_of(skeleton, frame) == segment_id:
+                    break
+            else:
+                raise ValueError(f"分群 {segment_id} 的过滤条件被前序分群遮蔽，无法按首匹配规则路由")
+            _set_path(skeleton, "persona_id", _new_persona_id(seed, frame_id, segment_id, k, used_ids))
+            combo = (_get_path(skeleton, "psyche.mbti.type"), _get_path(skeleton, "psyche.motive_type"))
+            combos[combo] += 1
+            results.append(skeleton)
     return results
