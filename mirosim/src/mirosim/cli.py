@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     probe.add_argument("--personas", required=True, type=Path)
     probe.add_argument("--out", required=True, type=Path)
     probe.add_argument("--max-calls", required=True, type=int, help="调用数上限；每人每遍 54 次，不合格的再加一次")
-    probe.add_argument("--probes", type=Path, default=ROOT / "data" / "probes" / "v1.yaml")
+    probe.add_argument("--probes", type=Path, default=ROOT / "config" / "probes_v1.yaml")
     probe.add_argument("--frame", type=Path, default=None, help="给了就只在同一分群内比较人物之间的差异")
     probe.add_argument("--sessions", type=int, choices=[1, 2], default=1, help="2：整套题做两遍，算重测一致性")
     probe.add_argument("--limit", type=int, default=None, help="只测前 N 个人物")

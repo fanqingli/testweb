@@ -11,7 +11,7 @@ from mirosim.engines.panel import load_personas
 from mirosim.persona.behavior import normalized_inputs
 from mirosim.persona.probe import DIMS, card_sign, load_probes, run_probes, score, spearman
 
-PROBES = ROOT / "data" / "probes" / "v1.yaml"
+PROBES = ROOT / "config" / "probes_v1.yaml"
 PERSONAS = ROOT / "examples" / "personas"
 
 
