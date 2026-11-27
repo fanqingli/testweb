@@ -22,6 +22,8 @@
       }
     },
     "call_id": {"type": ["string", "null"], "description": "llm_calls 表主键；未曝光则为空"},
+    "model_member": {"type": "string"},
+    "model_id": {"type": "string"},
     "valid": {"type": "boolean"},
     "invalid_reason": {"type": ["string", "null"]},
     "truncated": {"type": "boolean", "description": "引语超过该人物的字数上限（硬控制参数 max_chars），已被代码截断"},

@@ -438,6 +438,10 @@ def test_factory_cli_skips_existing_ids_and_limits_each_segment(tmp_path, monkey
     existing["persona_id"] = skeletons[0]["persona_id"]
     (into / f"{skeletons[0]['persona_id']}.json").write_text(
         json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    (into / "model_assignment.json").write_text(
+        json.dumps({"version": 1, "assignments": {skeletons[0]["persona_id"]: "ds_flash"}}),
+        encoding="utf-8",
+    )
     backend = FakeBackend()
     monkeypatch.setattr("mirosim.cli.from_tier", lambda models, tier, require_key: backend)
 
@@ -447,6 +451,38 @@ def test_factory_cli_skips_existing_ids_and_limits_each_segment(tmp_path, monkey
     assert backend.prompts == []
     assert not (into / f"{skeletons[1]['persona_id']}.json").exists()
     assert (run / "failures.jsonl").read_text(encoding="utf-8") == ""
+
+
+def test_factory_cli_excludes_model_assignment_from_persona_library(tmp_path, monkeypatch, capsys):
+    frame = _frame()
+    skeletons = _skeletons(frame)
+    frame_path, skeleton_path = tmp_path / "frame.yaml", tmp_path / "skeletons.jsonl"
+    frame_path.write_text(yaml.safe_dump(frame, allow_unicode=True), encoding="utf-8")
+    skeleton_path.write_text(
+        "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in skeletons),
+        encoding="utf-8",
+    )
+    into, run = tmp_path / "personas", tmp_path / "run"
+    into.mkdir()
+    assignment_path = into / "model_assignment.json"
+    assignment_path.write_text(
+        json.dumps({"version": 1, "assignments": {"p_existing": "ds_flash"}}), encoding="utf-8"
+    )
+    backend = FakeBackend()
+    monkeypatch.setattr("mirosim.cli.from_tier", lambda models, tier, require_key: backend)
+    captured_library = {}
+
+    def capture_write(skeletons, gateway, *, library, frame, created_at, concurrency):
+        captured_library["personas"] = library
+        return [], []
+
+    monkeypatch.setattr("mirosim.cli.write_personas", capture_write)
+
+    assert main(_factory_args(frame_path, skeleton_path, into, run)) == 0
+    capsys.readouterr()
+
+    assert captured_library["personas"] == []
+    assert assignment_path.is_file()
 
 
 def test_factory_cli_reports_mock_as_unsupported(tmp_path, capsys):

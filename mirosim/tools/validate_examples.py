@@ -57,7 +57,7 @@ def main() -> int:
     ex = ROOT / "examples"
 
     personas = {}
-    for path in sorted((ex / "personas").glob("*.json")):
+    for path in sorted((ex / "personas").glob("p_*.json")):
         p = check("persona", path)
         if p is None:
             continue

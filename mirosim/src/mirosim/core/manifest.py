@@ -56,7 +56,24 @@ def locked_sections(*, experiment: dict, root: Path, stimulus_path: Path, frame_
                     config_paths: dict[str, Path], prompt_ids: list[str], gateway) -> dict:
     """清单里被锁定的三段。一次运行只算一次（开头），之后写清单都用这一份：
     运行期间有人改了输入文件，清单记的仍是开头读到的那一版。"""
-    backend = gateway.backend
+    backends = getattr(gateway, "backends", None)
+    if backends is not None:
+        models = [
+            {
+                "member": member,
+                "tier": gateway.tiers_by[member],
+                "provider": getattr(backends[member], "provider", ""),
+                "model_id": backends[member].model_id,
+                "params": gateway.params_by[member],
+                "seed_supported": bool(getattr(backends[member], "supports_seed", False)),
+            }
+            for member in sorted(backends)
+        ]
+    else:
+        backend = gateway.backend
+        models = [{"tier": experiment["models"]["persona_tier"], "provider": getattr(backend, "provider", ""),
+                   "model_id": backend.model_id, "params": gateway.params,
+                   "seed_supported": bool(getattr(backend, "supports_seed", False))}]
     return {
         "inputs": {
             # 预算不算实验内容：因预算中断后调高预算接着跑，不应被当成换了实验
@@ -66,9 +83,7 @@ def locked_sections(*, experiment: dict, root: Path, stimulus_path: Path, frame_
             "population_lock_hash": sha_json(lock),
             "config_hashes": {name: sha_file(path) for name, path in sorted(config_paths.items())},
         },
-        "models": [{"tier": experiment["models"]["persona_tier"], "provider": getattr(backend, "provider", ""),
-                    "model_id": backend.model_id, "params": gateway.params,
-                    "seed_supported": bool(getattr(backend, "supports_seed", False))}],
+        "models": models,
         "prompts": [{"id": name, "hash": sha_file(root / "prompts" / f"{name}.md")} for name in sorted(prompt_ids)],
     }
 

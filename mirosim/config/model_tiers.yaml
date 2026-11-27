@@ -14,6 +14,18 @@ tiers:
     primary:  {provider: "", model_id: "", base_url: "", api_key_env: "MIROSIM_API_KEY", supports_json_mode: null, supports_seed: null}
     fallback: {provider: "", model_id: "", base_url: ""}
     params:   {temperature: 0.9, top_p: 0.95, max_output_tokens: 600}
+  tier-ds-flash:
+    use_for: "人物思考模型池：DeepSeek Flash"
+    primary:  {provider: deepseek, model_id: deepseek-flash, base_url: https://api.deepseek.com, api_key_env: DS_API_KEY}
+    params:   {temperature: 0.9, top_p: 0.95, max_output_tokens: 2000}
+  tier-kimi:
+    use_for: "人物思考模型池：Kimi"
+    primary:  {provider: dashscope, model_id: kimi-k2.5, base_url: https://coding.dashscope.aliyuncs.com/v1, api_key_env: OPENAI_API_KEY}
+    params:   {temperature: 0.9, top_p: 0.95, max_output_tokens: 2000}
+  tier-minimax:
+    use_for: "人物思考模型池：MiniMax"
+    primary:  {provider: dashscope, model_id: MiniMax-M2.5, base_url: https://coding.dashscope.aliyuncs.com/v1, api_key_env: OPENAI_API_KEY}
+    params:   {temperature: 0.9, top_p: 0.95, max_output_tokens: 2000}
   tier-balanced:
     use_for: "研讨模式的普通人物"
     primary:  {provider: "", model_id: "", base_url: ""}
@@ -24,6 +36,10 @@ tiers:
     primary:  {provider: "", model_id: "", base_url: ""}
     fallback: {provider: "", model_id: "", base_url: ""}
     params:   {temperature: 0.2, top_p: 0.9, max_output_tokens: 2000}
+persona_pool:  # 人物的「思考模型」池；只往后加，不要删改已有成员的 id
+  - {member: ds_flash, tier: tier-ds-flash}
+  - {member: kimi, tier: tier-kimi}
+  - {member: minimax, tier: tier-minimax}
 rules:
   same_tier_same_model_within_experiment: true   # 同一实验内，同档位只用一个具体模型
   max_downgrade_steps: 1                         # 失败降级最多一级
