@@ -136,17 +136,37 @@ def user_prompt(template, stimulus: dict, variant: dict, channel: str | None, ch
     return text
 
 
+def _first_json_object(text: str) -> dict:
+    start = text.find("{")
+    if start == -1:
+        return json.loads(text[text.find("{"):text.rfind("}") + 1])
+    decoder, first_error = json.JSONDecoder(), None
+    while start != -1:
+        try:
+            payload, _ = decoder.raw_decode(text, start)
+        except json.JSONDecodeError as e:
+            if first_error is None:
+                first_error = e
+        else:
+            if isinstance(payload, dict):
+                return payload
+        start = text.find("{", start + 1)
+    if first_error is not None:
+        raise first_error
+    raise json.JSONDecodeError("Expecting value", text, text.find("{"))
+
+
 def validate_payload(text: str, spec: dict, payload_schema: dict, max_chars: int | None = None) -> tuple[dict | None, str | None, bool]:
     """合格则返回 (payload, None, 引语是否被截断)，否则 (None, 原因, False)。
 
-    模型常在 JSON 外面包一层代码块或多写一句话，所以只取第一个 { 到最后一个 } 之间的部分；
+    模型常在 JSON 外面包一层代码块或多写一句话，所以只取第一个完整的 JSON 对象；
     带推理过程的模型写在开头 <think> 里的内容先去掉（只认开头那一段，答案正文里出现的不动）。
     引语超过 max_chars 时截断，不算不合格。
     没在意（noticed=false）是有效的反应：答案清空、行为记为 none，不重试。
     """
     text = re.sub(r"^\s*<think>.*?</think>", "", text, count=1, flags=re.S)
     try:
-        payload = json.loads(text[text.find("{"): text.rfind("}") + 1])
+        payload = _first_json_object(text)
     except json.JSONDecodeError as e:
         return None, f"不是合法的 JSON：{e.msg}", False
     if not isinstance(payload, dict):

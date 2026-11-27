@@ -113,7 +113,19 @@ def test_template_with_an_unknown_variable_fails_loudly(tmp_path):
 def test_answer_wrapped_in_a_code_block_is_accepted():
     payload, reason, truncated = validate_payload("好的：\n```json\n" + answer() + "\n```", SPEC, SCHEMA, 150)
     assert reason is None and payload["answers"]["pol_fair"] == 3 and not truncated
-    assert validate_payload("[1, 2]", SPEC, SCHEMA)[0] is None and validate_payload("我觉得还行", SPEC, SCHEMA)[0] is None
+    assert validate_payload("[1, 2]", SPEC, SCHEMA)[0] is None
+    assert validate_payload("我觉得还行", SPEC, SCHEMA)[1] == "不是合法的 JSON：Expecting value"
+
+
+def test_first_complete_json_object_ignores_trailing_braces_and_prose():
+    for text in (answer() + "}", "说明 {x} 后再回答：" + answer()):
+        payload, reason, _ = validate_payload(text, SPEC, SCHEMA)
+        assert reason is None and payload["answers"]["pol_fair"] == 3
+
+
+def test_truncated_json_object_remains_invalid():
+    payload, reason, _ = validate_payload('{"noticed": true', SPEC, SCHEMA)
+    assert payload is None and reason.startswith("不是合法的 JSON：")
 
 
 def test_long_quote_is_cut_to_the_persona_limit_not_rejected():
