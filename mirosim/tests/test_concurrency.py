@@ -87,6 +87,26 @@ def test_first_failure_stops_new_work_but_keeps_what_was_already_sent():
     assert in_order(lambda i: i * 2, [3, 1, 2], 4) == [6, 2, 4] == in_order(lambda i: i * 2, [3, 1, 2], 1)
 
 
+def test_interrupt_cancels_queued_work(monkeypatch):
+    started, lock = [], threading.Lock()
+    failed = threading.Event()
+
+    def interrupted_wait(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("mirosim.engines.panel.wait", interrupted_wait)
+
+    def work(i):
+        with lock:
+            started.append(i)
+        time.sleep(0.05)
+
+    with pytest.raises(KeyboardInterrupt):
+        in_order(work, list(range(50)), 2, on_fail=failed.set)
+    assert failed.is_set()
+    assert len(started) < 5
+
+
 def test_in_order_surfaces_real_failure_after_on_fail_stops_lower_index():
     stopped = threading.Event()
     lower_failed = threading.Event()

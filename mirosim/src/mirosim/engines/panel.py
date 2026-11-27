@@ -195,7 +195,14 @@ def in_order(work, items: list, concurrency: int, on_fail=None) -> list:
         return [work(item) for item in items]
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
         futures = [pool.submit(work, item) for item in items]
-        done, _ = wait(futures, return_when=FIRST_EXCEPTION)
+        try:
+            done, _ = wait(futures, return_when=FIRST_EXCEPTION)
+        except BaseException:
+            if on_fail is not None:
+                on_fail()
+            for f in futures:
+                f.cancel()
+            raise
         errors = [f.exception() for f in done if not f.cancelled() and f.exception() is not None]
         if errors:
             if on_fail is not None:
