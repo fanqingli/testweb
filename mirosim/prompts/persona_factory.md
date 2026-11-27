@@ -48,16 +48,18 @@
 - marital：必填，只能是 single、married、divorced、widowed。
 - children：必填，非负整数。
 - living_with：家里的居住情况，一句话。
-- life_events：3 到 5 条。每条含 year、event（发生了什么，要具体到一件事）、impact（这件事让他从此怎么看、怎么做）、core（最多 3 条为 true）。
+- life_events：数组，3 到 5 条。每条是对象 {"year": 整数, "event": "发生了什么，要具体到一件事", "impact": "这件事让他从此怎么看、怎么做", "core": true 或 false}，最多 3 条 core 为 true。
   至少一条与骨架里的「初始倾向」方向相反或无关——真人的经历不是为某个立场准备的。
   「初始倾向」指他对与这批人相关的事务（见上面的范围）最初的态度。
 - stakes：2 到 4 条，他眼下最在意的具体利益，要带得出数字或对象。
 - constraints：2 到 4 条，限制他选择的具体条件。
-- media_diet：从 {{ channel_ids | join("、") }} 里选 3 到 5 个，share 合计不超过 1。
-- consumption：decision_role、categories（3 到 5 个品类）、habits（2 到 3 条具体的买东西习惯）。
-- knowledge_bounds：knows 与 does_not_know 各 2 到 4 条。does_not_know 要包含至少一条外人以为他该懂、其实他不懂的。
+- media_diet：数组，每项是对象 {"channel": 渠道代码, "share": 0 到 1 的小数}。渠道代码只能从 {{ channel_ids | join("、") }} 里选 3 到 5 个，share 合计不超过 1。
+- consumption：对象 {"decision_role": ..., "categories": [3 到 5 个品类], "habits": [2 到 3 条具体的买东西习惯]}。decision_role 只能是 decider（家里买东西他拍板）、influencer（能左右别人的决定）、user_only（只用不管买）、none。
+- knowledge_bounds：对象 {"knows": [...], "does_not_know": [...]}，各 2 到 4 条。does_not_know 要包含至少一条外人以为他该懂、其实他不懂的。
 - language_style：一句话描述他怎么说话。
 - catchphrase：口头禅，可为 null。
+
+字符串里引用别人的话或说法时用「」，不要用英文双引号，否则 JSON 会坏。
 
 要求：
 1. 性格只通过经历和习惯体现，不要出现性格类型的名称或「内向」「理性」这类形容词。
