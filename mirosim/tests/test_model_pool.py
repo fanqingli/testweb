@@ -235,6 +235,9 @@ def test_mock_pool_panel_summary_replay_and_by_model_contrast(tmp_path, capsys):
     response_records = [json.loads(line) for line in (run_dir / "responses.jsonl").read_text().splitlines()]
     assert all(record["model_member"] in POOL for record in response_records)
     assert all(record["model_id"] == f"mock:{record['model_member']}" for record in response_records)
+    response_schema = json.loads((ROOT / "schemas" / "response.schema.json").read_text(encoding="utf-8"))
+    assert all(not list(Draft202012Validator(response_schema).iter_errors(record))
+               for record in response_records)
     assert summary["model_families_run"] == len(summary["models"])
     assert sum(model["personas"] for model in summary["models"].values()) == len(summary["personas"])
 
