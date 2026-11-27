@@ -103,6 +103,7 @@ def test_writer_happy_path_builds_schema_valid_routed_card_and_region_prompt(tmp
         "identity.home_region": ["northeast"],
         "identity.residence_region": ["shanghai"],
     })
+    frame["segments"][0]["label"] = ""
     skeleton = _skeletons(frame)[0]
     backend = FakeBackend()
     cards, failures, gateway = _writer([skeleton], frame, backend, tmp_path / "recording.jsonl")
@@ -121,11 +122,30 @@ def test_writer_happy_path_builds_schema_valid_routed_card_and_region_prompt(tmp
     assert "expression_intensity" in card["psyche"]["expression"]
     assert backend.prompts[0]["system"] == "你是写虚构人物档案的作者，只输出 JSON"
     assert backend.prompts[0]["spec"] is None
+    assert "【他属于哪类人】target。" in backend.prompts[0]["user"]
+    assert "这批人物的范围：" not in backend.prompts[0]["user"]
     assert "籍贯：东北；现居：上海。" in backend.prompts[0]["user"]
     record = _records(gateway.recording)[0]
     assert record["purpose"] == "factory"
     assert record["run_id"] == f"factory:{frame['frame_id']}"
     assert record["ordinal"] == 0
+
+
+def test_writer_prompt_includes_delivery_rider_label_and_frame_universe(tmp_path):
+    frame = yaml.safe_load(
+        (ROOT / "examples" / "frame.delivery_policy.yaml").read_text(encoding="utf-8"))
+    rider = deepcopy(next(segment for segment in frame["segments"] if segment["segment_id"] == "rider"))
+    rider["n"] = 1
+    frame["segments"] = [rider]
+    skeleton = _skeletons(frame)[0]
+    backend = FakeBackend()
+    cards, failures, _ = _writer([skeleton], frame, backend, tmp_path / "recording.jsonl")
+
+    assert len(cards) == 1 and failures == []
+    prompt = backend.prompts[0]["user"]
+    assert "【他属于哪类人】一线配送员。" in prompt
+    assert f"这批人物的范围：{frame['universe']}。" in prompt
+    assert "「初始倾向」指他对与这批人相关的事务（见上面的范围）最初的态度。" in prompt
 
 
 def test_writer_retries_invalid_json_once_then_succeeds(tmp_path):

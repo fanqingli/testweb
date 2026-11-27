@@ -19,6 +19,8 @@
 ```text
 你要根据下面的骨架写出一个虚构的普通人。这个人不存在，不得使用任何真实人物的姓名、真实机构或企业的名称。
 
+【他属于哪类人】{{ segment_label }}。{% if frame_universe %}这批人物的范围：{{ frame_universe }}。{% endif %}岗位、行业和经历都要符合这一身份。
+
 【骨架】
 {{ skeleton_json | tojson(indent=2) }}
 
@@ -48,6 +50,7 @@
 - living_with：家里的居住情况，一句话。
 - life_events：3 到 5 条。每条含 year、event（发生了什么，要具体到一件事）、impact（这件事让他从此怎么看、怎么做）、core（最多 3 条为 true）。
   至少一条与骨架里的「初始倾向」方向相反或无关——真人的经历不是为某个立场准备的。
+  「初始倾向」指他对与这批人相关的事务（见上面的范围）最初的态度。
 - stakes：2 到 4 条，他眼下最在意的具体利益，要带得出数字或对象。
 - constraints：2 到 4 条，限制他选择的具体条件。
 - media_diet：从 {{ channel_ids | join("、") }} 里选 3 到 5 个，share 合计不超过 1。

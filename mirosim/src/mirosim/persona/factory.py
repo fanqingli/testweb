@@ -623,6 +623,7 @@ def write_personas(skeletons: list[dict], gateway, *, library: list[dict], frame
     model_id = gateway.backend.model_id
     created_at = date.today().isoformat()
     run_id = f"factory:{frame['frame_id']}"
+    segments_by_id = {segment["segment_id"]: segment for segment in frame["segments"]}
     library_names = {persona["identity"]["name"] for persona in library}
     siblings = {}
     for persona in sorted(library, key=lambda item: item.get("persona_id", "")):
@@ -642,12 +643,15 @@ def write_personas(skeletons: list[dict], gateway, *, library: list[dict], frame
     skeletons = list(skeletons)
 
     def write_one(skeleton: dict) -> dict:
+        segment = segments_by_id.get(skeleton["segment_id"], {})
         prompt_skeleton = {
             key: deepcopy(value) for key, value in skeleton.items()
             if key not in {"persona_id", "frame_id", "priors"}
         }
         user = template.render(
             skeleton_json=prompt_skeleton,
+            segment_label=segment.get("label") or skeleton["segment_id"],
+            frame_universe=frame.get("universe"),
             sibling_summaries=sibling_prompts.get(skeleton["segment_id"], "[]"),
             channel_ids=sorted(channel_ids),
             region_labels=region_labels,
