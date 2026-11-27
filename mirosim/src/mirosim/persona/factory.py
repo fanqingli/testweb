@@ -31,6 +31,13 @@ _ENUM_FIELDS = {
     "identity.region_tier": _REGIONS,
     "identity.income_band": _INCOMES,
 }
+_MARGINAL_FIELDS = {
+    "identity.gender": _IDENTITY_PROPERTIES["gender"]["enum"],
+    "identity.education": _EDUCATION,
+    "identity.region_tier": _REGIONS,
+    "identity.income_band": _INCOMES,
+    "psyche.motive_type": _MOTIVES,
+}
 
 
 def _get_path(document: dict, path: str):
@@ -86,6 +93,33 @@ def _sample_table(table: dict, seed: int, frame_id: str, segment_id: str, k: int
         if draw < cumulative:
             return value
     return entries[-1][0]
+
+
+def _sample_marginal(table: dict, values: list[str], seed: int, frame_id: str, segment_id: str,
+                     k: int, shortfall: int, field: str) -> str:
+    if not isinstance(table, dict) or set(table) - set(values):
+        raise ValueError(f"{field} 的边际分布包含无效类别")
+    weights = []
+    for value in values:
+        weight = float(table.get(value, 0))
+        if not math.isfinite(weight) or weight < 0:
+            raise ValueError(f"{field} 的边际权重必须是非负有限数")
+        weights.append((value, weight))
+    total = sum(weight for _, weight in weights)
+    if total <= 0:
+        raise ValueError(f"{field} 的边际权重总和必须大于 0")
+
+    bins = _permutation(range(shortfall), seed, frame_id, segment_id, f"{field}.quota_bin")
+    unit = (bins[k] + u01(seed, "skeleton", frame_id, segment_id, k, field)) / shortfall
+    cumulative = 0.0
+    last_positive = None
+    for value, weight in weights:
+        if weight > 0:
+            last_positive = value
+        cumulative += weight / total
+        if unit < cumulative:
+            return value
+    return last_positive
 
 
 def _new_persona_id(seed: int, frame_id: str, segment_id: str, k: int, used_ids: set[str]) -> str:
@@ -158,10 +192,18 @@ def _fill_skeleton(skeleton: dict, segment: dict, frame: dict, behavior_map: dic
                    used_ids: set[str]) -> dict:
     frame_id, segment_id = frame["frame_id"], segment["segment_id"]
     filters = segment.get("filter", {})
+    marginals = segment.get("marginals", {})
     filter_paths = _set_filter_fields(skeleton, segment, seed, frame_id, k, skeleton["priors"])
 
     for path, values in _ENUM_FIELDS.items():
-        if path not in filter_paths:
+        if path in filter_paths:
+            continue
+        if path in marginals:
+            value = _sample_marginal(marginals[path], _MARGINAL_FIELDS[path], seed, frame_id, segment_id,
+                                     k, shortfall, path)
+            _set_path(skeleton, path, value)
+            skeleton["priors"][path] = "table"
+        else:
             _set_path(skeleton, path, enum_permutations[path][k % len(values)])
             skeleton["priors"][path] = "stratified_uniform"
 
@@ -205,15 +247,25 @@ def _fill_skeleton(skeleton: dict, segment: dict, frame: dict, behavior_map: dic
     if motive_path not in filter_paths:
         mbti_type = _get_path(skeleton, mbti_path)
         cap = int(behavior_map["sampling"]["max_same_combo_per_segment"])
-        candidates = [motive_permutation[(k + offset) % len(motive_permutation)]
-                      for offset in range(len(motive_permutation))]
+        if motive_path in marginals:
+            sampled_motive = _sample_marginal(
+                marginals[motive_path], _MARGINAL_FIELDS[motive_path], seed, frame_id, segment_id,
+                k, shortfall, motive_path)
+            candidates = [sampled_motive] + [
+                motive_permutation[(k + offset) % len(motive_permutation)]
+                for offset in range(len(motive_permutation))
+                if motive_permutation[(k + offset) % len(motive_permutation)] != sampled_motive
+            ]
+        else:
+            candidates = [motive_permutation[(k + offset) % len(motive_permutation)]
+                          for offset in range(len(motive_permutation))]
         motive = candidates[-1]
         for candidate in candidates:
             if combo_counts[(mbti_type, candidate)] < cap:
                 motive = candidate
                 break
         _set_path(skeleton, motive_path, motive)
-        skeleton["priors"][motive_path] = "stratified_uniform"
+        skeleton["priors"][motive_path] = "table" if motive_path in marginals else "stratified_uniform"
 
     if "psyche.values_top3" not in filter_paths:
         values_top3 = sorted(
