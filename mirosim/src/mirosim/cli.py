@@ -87,6 +87,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.backend == "mock":
             print("错误：人物工厂不支持 --backend mock，请使用 --backend openai。", file=sys.stderr)
             return 2
+        resolved_into = args.into.resolve()
+        resolved_out = args.out.resolve()
+        if (resolved_into == resolved_out or resolved_into in resolved_out.parents
+                or resolved_out in resolved_into.parents):
+            print("错误：--into 与 --out 不能相同或互相包含。", file=sys.stderr)
+            return 2
         if args.concurrency < 1 or (args.rpm is not None and args.rpm <= 0):
             print("错误：--concurrency 至少为 1，--rpm 必须大于 0。", file=sys.stderr)
             return 2

@@ -331,6 +331,24 @@ def _factory_args(frame_path, skeleton_path, into, out, *, replay=False, per_seg
     return args
 
 
+@pytest.mark.parametrize("relationship", ["same", "out_inside_into", "into_inside_out"])
+def test_factory_cli_rejects_overlapping_into_and_out_directories(tmp_path, capsys, relationship):
+    base = tmp_path / "directories"
+    if relationship == "same":
+        into = out = base
+    elif relationship == "out_inside_into":
+        into, out = base / "personas", base / "personas" / "run"
+    else:
+        into, out = base / "run" / "personas", base / "run"
+
+    result = main(_factory_args(tmp_path / "frame.yaml", tmp_path / "skeletons.jsonl", into, out))
+
+    captured = capsys.readouterr()
+    assert result == 2
+    assert "--into 与 --out 不能相同或互相包含" in captured.err
+    assert not base.exists()
+
+
 def test_factory_cli_replay_writes_byte_identical_persona_files(tmp_path, monkeypatch, capsys):
     frame = _frame()
     skeletons = _skeletons(frame)
