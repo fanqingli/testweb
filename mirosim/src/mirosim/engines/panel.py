@@ -214,6 +214,10 @@ def load_personas(directory: Path) -> list[dict]:
     ]
     if not personas:
         raise FileNotFoundError(f"{directory} 下没有人物卡")
+    seen = Counter(p["persona_id"] for p in personas)
+    duplicated = sorted(pid for pid, n in seen.items() if n > 1)
+    if duplicated:
+        raise ValueError(f"{directory} 下有重复的 persona_id：{duplicated}")
     return sorted(personas, key=lambda p: p["persona_id"])
 
 

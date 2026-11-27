@@ -309,3 +309,14 @@ def test_experiment_schema_accepts_pool_and_rejects_duplicate_members():
     assert not list(Draft202012Validator(schema).iter_errors(experiment))
     experiment["models"]["persona_pool"] = ["ds_flash", "ds_flash"]
     assert list(Draft202012Validator(schema).iter_errors(experiment))
+
+
+def test_load_personas_rejects_duplicate_ids(tmp_path):
+    import shutil
+    import pytest
+    from mirosim.engines.panel import load_personas
+    source = sorted((Path(__file__).resolve().parents[1] / "examples" / "personas").glob("p_*.json"))[0]
+    shutil.copy(source, tmp_path / source.name)
+    shutil.copy(source, tmp_path / "backup.json")
+    with pytest.raises(ValueError, match="重复"):
+        load_personas(tmp_path)
