@@ -142,14 +142,15 @@ def _first_json_object(text: str) -> dict:
         return json.loads(text[text.find("{"):text.rfind("}") + 1])
     decoder, first_error = json.JSONDecoder(), None
     while start != -1:
-        try:
-            payload, _ = decoder.raw_decode(text, start)
-        except json.JSONDecodeError as e:
-            if first_error is None:
-                first_error = e
-        else:
-            if isinstance(payload, dict):
-                return payload
+        if text[:start].count("{") == text[:start].count("}"):
+            try:
+                payload, _ = decoder.raw_decode(text, start)
+            except json.JSONDecodeError as e:
+                if first_error is None:
+                    first_error = e
+            else:
+                if isinstance(payload, dict):
+                    return payload
         start = text.find("{", start + 1)
     if first_error is not None:
         raise first_error

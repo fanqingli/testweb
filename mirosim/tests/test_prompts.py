@@ -124,8 +124,9 @@ def test_first_complete_json_object_ignores_trailing_braces_and_prose():
 
 
 def test_truncated_json_object_remains_invalid():
-    payload, reason, _ = validate_payload('{"noticed": true', SPEC, SCHEMA)
-    assert payload is None and reason.startswith("不是合法的 JSON：")
+    for text in ('{"noticed": true', '{"reaction": ' + answer()):
+        payload, reason, _ = validate_payload(text, SPEC, SCHEMA)
+        assert payload is None and reason.startswith("不是合法的 JSON：")
 
 
 def test_long_quote_is_cut_to_the_persona_limit_not_rejected():
