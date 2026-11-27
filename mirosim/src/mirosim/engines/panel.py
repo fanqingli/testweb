@@ -17,7 +17,7 @@ from jsonschema import Draft202012Validator
 
 from mirosim import NOTICE, ROOT
 from mirosim.core import manifest
-from mirosim.core.gateway import Gateway
+from mirosim.core.gateway import Gateway, Stopped
 from mirosim.core.rng import u01
 from mirosim.experiment.sampling import draw_sample
 from mirosim.persona.behavior import hard_params
@@ -188,7 +188,7 @@ def load_personas(directory: Path) -> list[dict]:
     return sorted(personas, key=lambda p: p["persona_id"])
 
 
-def in_order(work, items: list, concurrency: int) -> list:
+def in_order(work, items: list, concurrency: int, on_fail=None) -> list:
     """对每一项做 work，结果按 items 的顺序返回。有一项失败时，还没开始的不再开始，
     已经发出去的等它做完（它的调用已经计费，结果会留在录制里），然后抛出第一个失败。"""
     if concurrency <= 1:
@@ -196,10 +196,22 @@ def in_order(work, items: list, concurrency: int) -> list:
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
         futures = [pool.submit(work, item) for item in items]
         try:
-            wait(futures, return_when=FIRST_EXCEPTION)
-        finally:
+            done, _ = wait(futures, return_when=FIRST_EXCEPTION)
+        except BaseException:
+            if on_fail is not None:
+                on_fail()
+            for f in futures:
+                f.cancel()
+            raise
+        errors = [f.exception() for f in done if not f.cancelled() and f.exception() is not None]
+        if errors:
+            if on_fail is not None:
+                on_fail()
             for f in futures:  # 对已开始或已完成的没有影响
                 f.cancel()
+            errors = [f.exception() for f in futures if f.done() and not f.cancelled() and f.exception() is not None]
+            failure = next((error for error in errors if not isinstance(error, Stopped)), errors[0])
+            raise failure
         return [f.result() for f in futures]
 
 
@@ -290,7 +302,7 @@ def run_panel(experiment_path: Path, personas_dir: Path, out_dir: Path, gateway:
         for run_id, (vid, replicate, _) in list(statuses.items()):
             statuses[run_id] = (vid, replicate, "running")
             # 一格之内各人并发；结果按人物顺序收，产物与串行时逐字节相同
-            responses += in_order(lambda p: react(run_id, vid, replicate, p), personas, concurrency)
+            responses += in_order(lambda p: react(run_id, vid, replicate, p), personas, concurrency, on_fail=gateway.stop)
             statuses[run_id] = (vid, replicate, "done")
     except BaseException:  # 中断时把跑到一半的那一格记成 partial，再把异常交回去
         statuses.update({k: (v[0], v[1], "partial") for k, v in statuses.items() if v[2] == "running"})

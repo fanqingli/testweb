@@ -21,6 +21,10 @@ class BudgetExceeded(RuntimeError):
     """调用数或 token 用量已到预算。"""
 
 
+class Stopped(RuntimeError):
+    """运行已因别处失败而停止，不再发新调用"""
+
+
 class Backend(Protocol):
     model_id: str
 
@@ -55,9 +59,11 @@ class Gateway:
         self.usage = {"input_tokens": 0, "output_tokens": 0}  # 录制里全部调用的合计；后端不报用量时不计
         self.live_calls = 0
         self._lock = threading.Lock()
+        self._rate_lock = threading.Lock()
         self._in_flight = 0  # 已发出、还没回来的调用；算进调用数预算，并发时才不会超
         self._interval = 60.0 / requests_per_minute if requests_per_minute else 0.0
-        self._next_slot, self._clock, self._sleep = 0.0, clock, sleep
+        self._next_send, self._clock, self._sleep = 0.0, clock, sleep
+        self._stopped = False
         self._recorded: dict[str, str] = {}
         if self.recording.exists():
             for line in self.recording.read_text(encoding="utf-8").splitlines():
@@ -75,6 +81,21 @@ class Gateway:
         for k in self.usage:
             self.usage[k] += (usage or {}).get(k) or 0
 
+    def _check_token_budget(self) -> None:
+        for k, limit in self.max_tokens.items():  # 事后计量：到线后不再发新调用，在途的那几次可能使总量略超
+            if limit is not None and self.usage[k] >= limit:
+                raise BudgetExceeded(f"{k} 已用 {self.usage[k]}，预算 {limit}")
+
+    def _check_send(self) -> None:
+        with self._lock:
+            if self._stopped:
+                raise Stopped("运行已因别处失败而停止，不再发新调用")
+            self._check_token_budget()
+
+    def stop(self) -> None:
+        with self._lock:
+            self._stopped = True
+
     def call(self, *, system: str, user: str, purpose: str, run_id: str, ordinal: int = 0, seed: int = 0,
              spec: dict | None = None) -> CallResult:
         key = call_key(run_id=run_id, purpose=purpose, model_id=self.backend.model_id, params=self.params,
@@ -82,21 +103,25 @@ class Gateway:
         with self._lock:
             if key in self._recorded:
                 return CallResult(key, self._recorded[key], True)
+            if self._stopped:
+                raise Stopped("运行已因别处失败而停止，不再发新调用")
             if self.replay:
                 raise ReplayMiss(f"{run_id} #{ordinal}")
             used = len(self._recorded) + self._in_flight  # 录制里已有的调用也算
             if self.max_calls is not None and used >= self.max_calls:
                 raise BudgetExceeded(f"录制里已有 {len(self._recorded)} 次调用，另有 {self._in_flight} 次在途，预算 {self.max_calls}")
-            for k, limit in self.max_tokens.items():  # 事后计量：到线后不再发新调用，在途的那几次可能使总量略超
-                if limit is not None and self.usage[k] >= limit:
-                    raise BudgetExceeded(f"{k} 已用 {self.usage[k]}，预算 {limit}")
+            self._check_token_budget()
             self._in_flight += 1
-            now = self._clock()  # 限速：每次真实调用占一个时间格，格与格之间至少隔 60/每分钟上限 秒
-            slot = max(now, self._next_slot)
-            self._next_slot = slot + self._interval
         try:
-            if slot > now:
-                self._sleep(slot - now)
+            if self._interval:
+                with self._rate_lock:  # 发送按顺序排队：相邻两次真实发送至少隔 60/rpm 秒
+                    wait = self._next_send - self._clock()
+                    if wait > 0:
+                        self._sleep(wait)
+                    self._check_send()
+                    self._next_send = self._clock() + self._interval
+            else:
+                self._check_send()
             text = self.backend.complete(system, user, seed=seed, spec=spec)
             usage = getattr(self.backend, "last_usage", None)  # 后端按线程各存一份，见 OpenAICompatBackend
             rec = {"call_key": key, "run_id": run_id, "purpose": purpose, "model_id": self.backend.model_id,
