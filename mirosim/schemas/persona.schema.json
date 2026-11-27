@@ -22,6 +22,16 @@
         "birth_year": {"type": "integer", "minimum": 1930, "maximum": 2020},
         "education": {"enum": ["primary", "junior_high", "senior_high", "college", "bachelor", "master_plus"]},
         "region_tier": {"enum": ["tier1", "new_tier1", "tier2", "tier3_below", "county", "rural"], "description": "只到层级，不写真实地名"},
+        "home_region": {
+          "enum": ["northeast", "beijing_tianjin", "north_other", "northwest", "shandong", "central",
+                   "jiangzhe", "shanghai", "fujian", "guangdong", "sichuan_chongqing", "yungui"],
+          "description": "籍贯地域"
+        },
+        "residence_region": {
+          "enum": ["northeast", "beijing_tianjin", "north_other", "northwest", "shandong", "central",
+                   "jiangzhe", "shanghai", "fujian", "guangdong", "sichuan_chongqing", "yungui"],
+          "description": "现居地域"
+        },
         "household": {
           "type": "object",
           "additionalProperties": false,
@@ -178,7 +188,13 @@
         "parent_version": {"type": ["integer", "null"]},
         "archetype_id": {"type": ["string", "null"]},
         "generator": {"type": "string", "description": "生成用的档位与提示词 hash"},
-        "change_note": {"type": "string"}
+        "change_note": {"type": "string"},
+        "priors": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": ["uniform", "filter", "table", "stratified_uniform", "rerouted"]
+          }
+        }
       }
     },
     "quality": {
