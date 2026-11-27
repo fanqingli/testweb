@@ -15,6 +15,19 @@ region_tier:
   tier3_below: "三四线城市"
   county: "县城"
   rural: "农村"
+region:
+  northeast: "东北"
+  beijing_tianjin: "京津"
+  north_other: "华北其他（冀晋蒙）"
+  northwest: "西北"
+  shandong: "山东"
+  central: "华中（豫鄂湘赣皖）"
+  jiangzhe: "江浙"
+  shanghai: "上海"
+  fujian: "福建"
+  guangdong: "广东"
+  sichuan_chongqing: "川渝"
+  yungui: "云贵"
 marital: {single: "单身", married: "已婚", divorced: "离异", widowed: "丧偶"}
 employment_type:
   employee: "给单位上班"

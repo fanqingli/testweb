@@ -9,6 +9,7 @@ from jsonschema import Draft202012Validator
 
 from mirosim import ROOT
 from mirosim.cli import main
+from mirosim.core.rng import u01
 from mirosim.engines.panel import load_personas
 from mirosim.experiment.sampling import segment_of
 from mirosim.persona.factory import draw_skeletons
@@ -16,6 +17,7 @@ from mirosim.persona.factory import draw_skeletons
 EX = ROOT / "examples"
 PERSONAS = load_personas(EX / "personas")
 BEHAVIOR_MAP = yaml.safe_load((ROOT / "config" / "mbti_behavior_map.yaml").read_text(encoding="utf-8"))
+REGION_SHIFT_CONFIG = yaml.safe_load((ROOT / "config" / "region_trait_shift.yaml").read_text(encoding="utf-8"))
 PERSONA_SCHEMA = json.loads((ROOT / "schemas" / "persona.schema.json").read_text(encoding="utf-8"))
 POPULATION_FRAME_SCHEMA = json.loads((ROOT / "schemas" / "population_frame.schema.json").read_text(encoding="utf-8"))
 FRAME_PATHS = [EX / "frame.delivery_policy.yaml", EX / "frame.urban_consumers.yaml"]
@@ -65,14 +67,46 @@ def test_delivery_rider_income_marginal_uses_stratified_quotas():
         assert abs(counts[band] - share * len(rider_skeletons)) <= 1
 
 
+def test_home_and_residence_region_sampling():
+    frame = deepcopy(DELIVERY_FRAME)
+    frame["segments"] = [deepcopy(frame["segments"][0])]
+    frame["segments"][0]["n"] = 200
+    skeletons = draw_skeletons(frame, [], BEHAVIOR_MAP, seed=113)
+    assert len(skeletons) == 200
+    same_region_rate = sum(
+        s["identity"]["home_region"] == s["identity"]["residence_region"] for s in skeletons
+    ) / len(skeletons)
+    assert 0.65 <= same_region_rate <= 0.82
+    assert all(s["priors"]["identity.residence_region"] == "table" for s in skeletons)
+
+
+def test_home_region_marginal_uses_stratified_quotas():
+    frame = deepcopy(DELIVERY_FRAME)
+    rider = next(s for s in frame["segments"] if s["segment_id"] == "rider")
+    rider.setdefault("marginals", {})["identity.home_region"] = {"jiangzhe": 0.6, "guangdong": 0.4}
+    skeletons = draw_skeletons(frame, PERSONAS, BEHAVIOR_MAP, seed=127)
+    rider_skeletons = [s for s in skeletons if s["segment_id"] == "rider"]
+    counts = Counter(s["identity"]["home_region"] for s in rider_skeletons)
+    assert set(counts) <= {"jiangzhe", "guangdong"}
+    assert all(s["priors"]["identity.home_region"] == "table" for s in rider_skeletons)
+    assert abs(counts["jiangzhe"] - 0.6 * len(rider_skeletons)) <= 1
+    assert abs(counts["guangdong"] - 0.4 * len(rider_skeletons)) <= 1
+
+
 def test_population_frame_schema_accepts_example_marginals():
-    assert not list(Draft202012Validator(POPULATION_FRAME_SCHEMA).iter_errors(DELIVERY_FRAME))
+    frame = deepcopy(DELIVERY_FRAME)
+    rider = next(s for s in frame["segments"] if s["segment_id"] == "rider")
+    rider.setdefault("marginals", {})["identity.home_region"] = {"jiangzhe": 0.5, "guangdong": 0.5}
+    rider["marginals"]["identity.residence_region"] = {"shanghai": 1}
+    assert not list(Draft202012Validator(POPULATION_FRAME_SCHEMA).iter_errors(frame))
 
 
 @pytest.mark.parametrize("marginals", [
     {"identity.unknown": {"male": 1}},
     {"identity.gender": {"unknown": 1}},
     {"identity.gender": {"male": 0, "female": 0}},
+    {"identity.home_region": {"unknown": 1}},
+    {"identity.residence_region": {"shanghai": 0}},
 ])
 def test_population_frame_schema_rejects_invalid_marginals(marginals):
     frame = deepcopy(DELIVERY_FRAME)
@@ -95,6 +129,125 @@ def test_motive_marginal_is_first_combo_candidate():
     assert max(combos.values(), default=0) <= BEHAVIOR_MAP["sampling"]["max_same_combo_per_segment"]
 
 
+def test_region_shifts_clip_traits_and_recompute_mbti_axes():
+    frame = deepcopy(DELIVERY_FRAME)
+    segment = deepcopy(frame["segments"][0])
+    segment["n"] = 1
+    segment["filter"]["identity.home_region"] = ["jiangzhe"]
+    frame["segments"] = [segment]
+    frame["mbti_prior"] = {"mode": "table", "table": {"ENTJ": 1}}
+    behavior_map = deepcopy(BEHAVIOR_MAP)
+    behavior_map["sampling"]["borderline_prob_per_axis"] = 0
+    behavior_map["sampling"]["magnitude"]["scale"] = [0.2, 0.25]
+    behavior_map["sampling"]["traits"]["a"] = 50
+    behavior_map["sampling"]["traits"]["b"] = 1
+    skeleton = draw_skeletons(
+        frame, [], behavior_map, seed=131,
+        region_shifts=[
+            {"region": "jiangzhe", "field": "psyche.traits.emotional_stability", "delta": 0.3, "source": "test"},
+            {"region": "jiangzhe", "field": "psyche.mbti.axes.ei", "delta": -0.3, "source": "test"},
+        ],
+    )[0]
+    mbti = skeleton["psyche"]["mbti"]
+    assert skeleton["psyche"]["traits"]["emotional_stability"] == 1.0
+    assert mbti["axes"]["ei"] < 0
+    assert mbti["type"] == "INTJ"
+    assert "ei" in mbti["borderline_axes"]
+    assert mbti["borderline_axes"] == [axis for axis in ("ei", "sn", "tf", "jp")
+                                       if abs(mbti["axes"][axis]) < 0.2]
+
+    shadowed_frame = deepcopy(frame)
+    shadowed_frame["segments"][0]["filter"]["psyche.mbti.type"] = ["ENTJ"]
+    with pytest.raises(ValueError, match="地域修正后分群 rider 落入前序分群"):
+        draw_skeletons(
+            shadowed_frame, [], behavior_map, seed=131,
+            region_shifts=[
+                {"region": "jiangzhe", "field": "psyche.traits.emotional_stability",
+                 "delta": 0.3, "source": "test"},
+                {"region": "jiangzhe", "field": "psyche.mbti.axes.ei", "delta": -0.3, "source": "test"},
+            ],
+        )
+
+
+def test_region_shift_does_not_override_filter_fixed_trait():
+    frame = {
+        "frame_id": "f_region_filter",
+        "mbti_prior": {"mode": "uniform"},
+        "segments": [{
+            "segment_id": "filtered",
+            "filter": {
+                "identity.home_region": ["jiangzhe"],
+                "psyche.traits.emotional_stability": [0.25],
+            },
+            "share": 1.0,
+            "n": 1,
+        }],
+    }
+    skeleton = draw_skeletons(
+        frame, [], BEHAVIOR_MAP, seed=139,
+        region_shifts=[{
+            "region": "jiangzhe", "field": "psyche.traits.emotional_stability",
+            "delta": 0.3, "source": "test",
+        }],
+    )[0]
+
+    assert skeleton["psyche"]["traits"]["emotional_stability"] == 0.25
+
+
+def test_region_shift_uses_home_region_after_pre_shift_reroute():
+    frame = {
+        "frame_id": "f_region_reroute",
+        "mbti_prior": {"mode": "uniform"},
+        "segments": [
+            {
+                "segment_id": "jiangzhe",
+                "filter": {"identity.home_region": ["jiangzhe"]},
+                "share": 0.0,
+                "n": 0,
+            },
+            {
+                "segment_id": "target",
+                "filter": {"identity.home_region": ["jiangzhe", "guangdong"]},
+                "share": 1.0,
+                "n": 1,
+            },
+        ],
+    }
+    seed = next(
+        candidate for candidate in range(100)
+        if u01(candidate, "skeleton", frame["frame_id"], "target", 0, "identity.home_region") < 0.5
+    )
+    baseline = draw_skeletons(frame, [], BEHAVIOR_MAP, seed=seed)[0]
+    shifted = draw_skeletons(
+        frame, [], BEHAVIOR_MAP, seed=seed,
+        region_shifts=[
+            {"region": "jiangzhe", "field": "psyche.traits.risk_tolerance",
+             "delta": -0.2, "source": "test"},
+            {"region": "guangdong", "field": "psyche.traits.risk_tolerance",
+             "delta": 0.2, "source": "test"},
+        ],
+    )[0]
+
+    assert baseline["identity"]["home_region"] == shifted["identity"]["home_region"] == "guangdong"
+    assert shifted["psyche"]["traits"]["risk_tolerance"] == pytest.approx(
+        min(1.0, baseline["psyche"]["traits"]["risk_tolerance"] + 0.2)
+    )
+
+
+@pytest.mark.parametrize(("shift", "message"), [
+    ({"region": "unknown", "field": "psyche.traits.risk_tolerance", "delta": 0.1, "source": "test"}, "未知地域"),
+    ({"region": "jiangzhe", "field": "psyche.traits.unknown", "delta": 0.1, "source": "test"}, "未知字段"),
+    ({"region": "jiangzhe", "field": "psyche.traits.risk_tolerance", "delta": 0.1}, "缺少出处"),
+])
+def test_region_shifts_require_valid_source_and_fields(shift, message):
+    with pytest.raises(ValueError, match=message):
+        draw_skeletons(DELIVERY_FRAME, [], BEHAVIOR_MAP, seed=137, region_shifts=[shift])
+
+
+def test_region_trait_shift_config_defaults_to_empty():
+    assert REGION_SHIFT_CONFIG == {"shifts": []}
+
+
 @pytest.mark.parametrize("frame_path", FRAME_PATHS)
 def test_skeletons_match_segments_and_schema_ranges(frame_path):
     frame = _frame(frame_path)
@@ -111,6 +264,8 @@ def test_skeletons_match_segments_and_schema_ranges(frame_path):
         assert re.fullmatch(r"p_[0-9a-z]{6,}", skeleton["persona_id"])
         assert skeleton["identity"]["gender"] in ("male", "female")
         assert skeleton["identity"]["gender"] in identity_schema["gender"]["enum"]
+        for field in ("home_region", "residence_region"):
+            assert skeleton["identity"][field] in identity_schema[field]["enum"]
         for field in ("education", "region_tier", "income_band"):
             assert skeleton["identity"][field] in identity_schema[field]["enum"]
         year = skeleton["identity"]["birth_year"]
