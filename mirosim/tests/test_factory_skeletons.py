@@ -1,7 +1,7 @@
 import json
 import re
 from copy import deepcopy
-from collections import Counter
+from collections import Counter, defaultdict
 
 import pytest
 import yaml
@@ -167,6 +167,32 @@ def test_rotation_coverage_stance_spread_and_combo_cap():
                          for persona in PERSONAS if segment_of(persona, DELIVERY_FRAME) == segment_id)
         combos.update((s["psyche"]["mbti"]["type"], s["psyche"]["motive_type"]) for s in group)
         assert max(combos.values(), default=0) <= max_combo
+
+
+def test_rotations_break_pairings_across_cycles():
+    frame = deepcopy(DELIVERY_FRAME)
+    frame["segments"] = [{
+        "segment_id": "mix",
+        "label": "测试",
+        "filter": {},
+        "share": 1.0,
+        "n": 64,
+    }]
+    skeletons = draw_skeletons(frame, [], BEHAVIOR_MAP, seed=97)
+    leans_by_type = defaultdict(set)
+    leans_by_region = defaultdict(set)
+    regions_by_lean = defaultdict(set)
+    for skeleton in skeletons:
+        mbti_type = skeleton["psyche"]["mbti"]["type"]
+        lean = skeleton["initial_lean"]
+        region = skeleton["identity"]["region_tier"]
+        leans_by_type[mbti_type].add(lean)
+        leans_by_region[region].add(lean)
+        regions_by_lean[lean].add(region)
+    pairings = {(s["identity"]["region_tier"], s["initial_lean"]) for s in skeletons}
+    assert sum(len(leans) >= 2 for leans in leans_by_type.values()) >= 12
+    assert len(pairings) > len(leans_by_region)
+    assert len(pairings) > len(regions_by_lean)
 
 
 @pytest.mark.parametrize("frame_path", FRAME_PATHS)

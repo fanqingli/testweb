@@ -67,9 +67,15 @@ def _is_array_path(path: str) -> bool:
     return node.get("type") == "array"
 
 
-def _permutation(values, seed: int, frame_id: str, segment_id: str, field: str) -> list:
+def _permutation(values, seed: int, frame_id: str, segment_id: str, field: str, cycle: int = 0) -> list:
     return sorted(values, key=lambda value: (
-        u01(seed, "skeleton", frame_id, segment_id, 0, f"{field}:{value}"), str(value)))
+        u01(seed, "skeleton", frame_id, segment_id, cycle, f"{field}:{value}"), str(value)))
+
+
+def _rotated_value(values, seed: int, frame_id: str, segment_id: str, field: str, k: int):
+    cycle = k // len(values)
+    permutation = _permutation(values, seed, frame_id, segment_id, field, cycle)
+    return permutation[k % len(values)]
 
 
 def _beta_sample(config: dict, seed: int, frame_id: str, segment_id: str, k: int, field: str) -> float:
@@ -204,7 +210,7 @@ def _fill_skeleton(skeleton: dict, segment: dict, frame: dict, behavior_map: dic
             _set_path(skeleton, path, value)
             skeleton["priors"][path] = "table"
         else:
-            _set_path(skeleton, path, enum_permutations[path][k % len(values)])
+            _set_path(skeleton, path, _rotated_value(values, seed, frame_id, segment_id, path, k))
             skeleton["priors"][path] = "stratified_uniform"
 
     if "identity.birth_year" not in filter_paths:
@@ -220,7 +226,7 @@ def _fill_skeleton(skeleton: dict, segment: dict, frame: dict, behavior_map: dic
         prior = frame["mbti_prior"]
         mode = prior["mode"]
         if mode == "uniform":
-            mbti_type = mbti_permutation[k % len(mbti_permutation)]
+            mbti_type = _rotated_value(_MBTI_TYPES, seed, frame_id, segment_id, mbti_path, k)
             skeleton["priors"][mbti_path] = "stratified_uniform"
         elif mode == "table":
             table = prior.get("table") or {}
@@ -247,18 +253,21 @@ def _fill_skeleton(skeleton: dict, segment: dict, frame: dict, behavior_map: dic
     if motive_path not in filter_paths:
         mbti_type = _get_path(skeleton, mbti_path)
         cap = int(behavior_map["sampling"]["max_same_combo_per_segment"])
+        motive_cycle = k // len(_MOTIVES)
+        motive_permutation = _permutation(
+            _MOTIVES, seed, frame_id, segment_id, motive_path, motive_cycle)
+        motive_start = k % len(motive_permutation)
+        permuted_motives = [motive_permutation[(motive_start + offset) % len(motive_permutation)]
+                            for offset in range(len(motive_permutation))]
         if motive_path in marginals:
             sampled_motive = _sample_marginal(
                 marginals[motive_path], _MARGINAL_FIELDS[motive_path], seed, frame_id, segment_id,
                 k, shortfall, motive_path)
             candidates = [sampled_motive] + [
-                motive_permutation[(k + offset) % len(motive_permutation)]
-                for offset in range(len(motive_permutation))
-                if motive_permutation[(k + offset) % len(motive_permutation)] != sampled_motive
+                candidate for candidate in permuted_motives if candidate != sampled_motive
             ]
         else:
-            candidates = [motive_permutation[(k + offset) % len(motive_permutation)]
-                          for offset in range(len(motive_permutation))]
+            candidates = permuted_motives
         motive = candidates[-1]
         for candidate in candidates:
             if combo_counts[(mbti_type, candidate)] < cap:
@@ -276,7 +285,8 @@ def _fill_skeleton(skeleton: dict, segment: dict, frame: dict, behavior_map: dic
         skeleton["priors"]["psyche.values_top3"] = "uniform"
 
     if "initial_lean" not in filter_paths:
-        _set_path(skeleton, "initial_lean", enum_permutations["initial_lean"][k % len(_LEANINGS)])
+        _set_path(skeleton, "initial_lean",
+                  _rotated_value(_LEANINGS, seed, frame_id, segment_id, "initial_lean", k))
         skeleton["priors"]["initial_lean"] = "stratified_uniform"
 
     _set_path(skeleton, "persona_id", _new_persona_id(seed, frame_id, segment_id, k, used_ids))
