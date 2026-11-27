@@ -205,15 +205,13 @@ def validate_payload(text: str, spec: dict, payload_schema: dict, max_chars: int
 
 def load_personas(directory: Path) -> list[dict]:
     directory = Path(directory)
-    paths = sorted(directory.glob("p_*.json"))
-    personas = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
-    if not personas:
-        personas = [
-            document
-            for path in sorted(directory.glob("*.json"))
-            if isinstance((document := json.loads(path.read_text(encoding="utf-8"))), dict)
-            and str(document.get("persona_id", "")).startswith("p_")
-        ]
+    personas = [
+        document
+        for path in sorted(directory.glob("*.json"))
+        if path.name != "model_assignment.json"
+        and isinstance((document := json.loads(path.read_text(encoding="utf-8"))), dict)
+        and str(document.get("persona_id", "")).startswith("p_")
+    ]
     if not personas:
         raise FileNotFoundError(f"{directory} 下没有人物卡")
     return sorted(personas, key=lambda p: p["persona_id"])
