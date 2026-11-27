@@ -95,8 +95,60 @@ def test_from_tier_reads_config_and_takes_key_from_env_only():
         from_tier(cfg, "tier-nope", env={})
     b = from_tier(cfg, "tier-economy", temperature=0.3, env={"MY_KEY": KEY})
     assert b.params == {"temperature": 0.3, "top_p": 0.95, "max_tokens": 600}
+    assert b.extra_body == {}
     assert not b.supports_json_mode and not b.supports_seed
     assert from_tier(cfg, "tier-economy", env={}, require_key=False).params["temperature"] == 0.9
+    cfg["tiers"]["tier-economy"]["primary"]["extra_body"] = {"thinking": {"type": "disabled"}}
+    assert from_tier(cfg, "tier-economy", env={"MY_KEY": KEY}).extra_body == cfg["tiers"]["tier-economy"]["primary"]["extra_body"]
+
+
+def test_extra_body_is_merged_into_request_body():
+    extra = {"thinking": {"type": "disabled"}}
+    t = Script(reply())
+    configured, _ = backend(t, extra_body=extra)
+    configured.complete("s", "u", seed=1)
+    assert t.requests[0]["body"]["thinking"] == extra["thinking"]
+
+
+def test_extra_body_changes_key_params_only_when_nonempty():
+    plain, _ = backend(Script(reply()))
+    assert plain.key_params == {**plain.params, "url": plain.url, "json_mode": False, "seed_sent": False}
+    extra = {"thinking": {"type": "disabled"}}
+    configured, _ = backend(Script(reply()), extra_body=extra)
+    assert configured.key_params == {**plain.key_params, "extra_body": extra}
+
+
+def test_from_tier_rejects_non_dict_extra_body():
+    cfg = yaml.safe_load((ROOT / "config" / "model_tiers.yaml").read_text(encoding="utf-8"))
+    primary = cfg["tiers"]["tier-economy"]["primary"]
+    primary.update(model_id="m", base_url="https://x/v1")
+    primary["extra_body"] = "not a mapping"
+    with pytest.raises(ValueError, match=r"tier-economy 的 primary\.extra_body"):
+        from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY})
+
+
+def test_from_tier_rejects_reserved_extra_body_keys():
+    cfg = yaml.safe_load((ROOT / "config" / "model_tiers.yaml").read_text(encoding="utf-8"))
+    primary = cfg["tiers"]["tier-economy"]["primary"]
+    primary.update(model_id="m", base_url="https://x/v1")
+    primary["extra_body"] = {"model": "override"}
+    with pytest.raises(ValueError, match="model"):
+        from_tier(cfg, "tier-economy", env={"MIROSIM_API_KEY": KEY})
+
+
+def test_empty_length_response_raises_without_retry():
+    response = (200, {}, json.dumps({"choices": [{"message": {"content": ""}, "finish_reason": "length"}]}))
+    t = Script(response)
+    b, _ = backend(t)
+    with pytest.raises(BackendError, match="max_tokens"):
+        b.complete("s", "u", seed=1)
+    assert len(t.requests) == 1
+
+
+def test_empty_stop_response_still_returns_empty_string():
+    response = (200, {}, json.dumps({"choices": [{"message": {"content": ""}, "finish_reason": "stop"}]}))
+    b, _ = backend(Script(response))
+    assert b.complete("s", "u", seed=1) == ""
 
 
 def test_gateway_records_usage_and_enforces_token_budget(tmp_path):
