@@ -18,7 +18,9 @@ from mirosim.analysis.contrast import contrast_table
 from mirosim.core.gateway import BudgetExceeded, Gateway, MockBackend, Stopped
 from mirosim.core.manifest import ManifestMismatch
 from mirosim.core.openai_backend import BackendError, from_tier
+from mirosim.experiment.sampling import segment_of
 from mirosim.engines.panel import run_panel
+from mirosim.persona.factory import draw_skeletons
 
 MOCK_WARNING = "后端是 mock：答案是按种子生成的随机数，只说明流程走得通，不是模拟结果。"
 
@@ -41,7 +43,28 @@ def main(argv: list[str] | None = None) -> int:
     con.add_argument("--run", required=True, type=Path)
     con.add_argument("--experiment", required=True, type=Path)
     con.add_argument("--measure", required=True)
+    skeletons = sub.add_parser("skeletons", help="按人群框架抽取人物骨架")
+    skeletons.add_argument("--frame", required=True, type=Path)
+    skeletons.add_argument("--personas", required=True, type=Path)
+    skeletons.add_argument("--seed", required=True, type=int)
+    skeletons.add_argument("--out", required=True, type=Path)
     args = ap.parse_args(argv)
+
+    if args.cmd == "skeletons":
+        frame = yaml.safe_load(args.frame.read_text(encoding="utf-8"))
+        personas = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(args.personas.glob("*.json"))]
+        behavior_map = yaml.safe_load((ROOT / "config" / "mbti_behavior_map.yaml").read_text(encoding="utf-8"))
+        skeletons = draw_skeletons(frame, personas, behavior_map, args.seed)
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text("".join(json.dumps(item, ensure_ascii=False, sort_keys=True) + "\n"
+                                    for item in skeletons), encoding="utf-8")
+        print("segment_id\tn_target\texisting\tnew")
+        for segment in frame["segments"]:
+            segment_id = segment["segment_id"]
+            existing = sum(segment_of(persona, frame) == segment_id for persona in personas)
+            new = sum(skeleton["segment_id"] == segment_id for skeleton in skeletons)
+            print(f"{segment_id}\t{segment['n']}\t{existing}\t{new}")
+        return 0
 
     x = yaml.safe_load(args.experiment.read_text(encoding="utf-8"))
     if args.cmd == "run-panel":
