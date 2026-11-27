@@ -76,6 +76,37 @@
         {"required": ["gt_500k"], "properties": {"gt_500k": {"exclusiveMinimum": 0}}}
       ]
     },
+    "regionMarginal": {
+      "type": "object", "minProperties": 1, "additionalProperties": false,
+      "properties": {
+        "northeast": {"$ref": "#/$defs/nonNegativeWeight"},
+        "beijing_tianjin": {"$ref": "#/$defs/nonNegativeWeight"},
+        "north_other": {"$ref": "#/$defs/nonNegativeWeight"},
+        "northwest": {"$ref": "#/$defs/nonNegativeWeight"},
+        "shandong": {"$ref": "#/$defs/nonNegativeWeight"},
+        "central": {"$ref": "#/$defs/nonNegativeWeight"},
+        "jiangzhe": {"$ref": "#/$defs/nonNegativeWeight"},
+        "shanghai": {"$ref": "#/$defs/nonNegativeWeight"},
+        "fujian": {"$ref": "#/$defs/nonNegativeWeight"},
+        "guangdong": {"$ref": "#/$defs/nonNegativeWeight"},
+        "sichuan_chongqing": {"$ref": "#/$defs/nonNegativeWeight"},
+        "yungui": {"$ref": "#/$defs/nonNegativeWeight"}
+      },
+      "anyOf": [
+        {"required": ["northeast"], "properties": {"northeast": {"exclusiveMinimum": 0}}},
+        {"required": ["beijing_tianjin"], "properties": {"beijing_tianjin": {"exclusiveMinimum": 0}}},
+        {"required": ["north_other"], "properties": {"north_other": {"exclusiveMinimum": 0}}},
+        {"required": ["northwest"], "properties": {"northwest": {"exclusiveMinimum": 0}}},
+        {"required": ["shandong"], "properties": {"shandong": {"exclusiveMinimum": 0}}},
+        {"required": ["central"], "properties": {"central": {"exclusiveMinimum": 0}}},
+        {"required": ["jiangzhe"], "properties": {"jiangzhe": {"exclusiveMinimum": 0}}},
+        {"required": ["shanghai"], "properties": {"shanghai": {"exclusiveMinimum": 0}}},
+        {"required": ["fujian"], "properties": {"fujian": {"exclusiveMinimum": 0}}},
+        {"required": ["guangdong"], "properties": {"guangdong": {"exclusiveMinimum": 0}}},
+        {"required": ["sichuan_chongqing"], "properties": {"sichuan_chongqing": {"exclusiveMinimum": 0}}},
+        {"required": ["yungui"], "properties": {"yungui": {"exclusiveMinimum": 0}}}
+      ]
+    },
     "motiveTypeMarginal": {
       "type": "object", "minProperties": 1, "additionalProperties": false,
       "properties": {
@@ -120,6 +151,8 @@
               "identity.education": {"$ref": "#/$defs/educationMarginal"},
               "identity.region_tier": {"$ref": "#/$defs/regionTierMarginal"},
               "identity.income_band": {"$ref": "#/$defs/incomeBandMarginal"},
+              "identity.home_region": {"$ref": "#/$defs/regionMarginal"},
+              "identity.residence_region": {"$ref": "#/$defs/regionMarginal"},
               "psyche.motive_type": {"$ref": "#/$defs/motiveTypeMarginal"}
             }
           },

@@ -6,12 +6,20 @@ import itertools
 import json
 import math
 import random
+import re
 from collections import Counter
 from copy import deepcopy
+from datetime import date
+from pathlib import Path
+
+import yaml
+from jsonschema import Draft202012Validator
 
 from mirosim import ROOT
 from mirosim.core.rng import u01
+from mirosim.engines.panel import _first_json_object, in_order
 from mirosim.experiment.sampling import segment_of
+from mirosim.persona.render import load_template
 
 _PERSONA_SCHEMA = json.loads((ROOT / "schemas" / "persona.schema.json").read_text(encoding="utf-8"))
 _IDENTITY_PROPERTIES = _PERSONA_SCHEMA["properties"]["identity"]["properties"]
@@ -19,24 +27,35 @@ _PSYCHE_PROPERTIES = _PERSONA_SCHEMA["properties"]["psyche"]["properties"]
 _GENDERS = ["male", "female"]
 _EDUCATION = _IDENTITY_PROPERTIES["education"]["enum"]
 _REGIONS = _IDENTITY_PROPERTIES["region_tier"]["enum"]
+_HOME_REGIONS = _IDENTITY_PROPERTIES["home_region"]["enum"]
+_RESIDENCE_REGIONS = _IDENTITY_PROPERTIES["residence_region"]["enum"]
 _INCOMES = _IDENTITY_PROPERTIES["income_band"]["enum"]
 _MOTIVES = _PSYCHE_PROPERTIES["motive_type"]["enum"]
 _LEANINGS = ["support", "oppose", "conditional", "indifferent"]
 _VALUES = _PSYCHE_PROPERTIES["values_top3"]["items"]["enum"]
 _AXES = {"ei": (0, "E"), "sn": (1, "N"), "tf": (2, "T"), "jp": (3, "J")}
+_AXIS_NEGATIVE = {"ei": "I", "sn": "S", "tf": "F", "jp": "P"}
 _TRAITS = ("emotional_stability", "risk_tolerance", "institutional_trust", "conformity", "price_sensitivity")
 _MBTI_TYPES = ["".join(letters) for letters in itertools.product("EI", "SN", "TF", "JP")]
+_REGION_SHIFT_FIELDS = {f"psyche.traits.{trait}" for trait in _TRAITS} | {
+    f"psyche.mbti.axes.{axis}" for axis in _AXES
+}
+_MBTI_LEAK = re.compile(r"(?<![A-Za-z])[EI][SN][TF][JP](?![A-Za-z])", re.IGNORECASE)
 _ENUM_FIELDS = {
     "identity.gender": _GENDERS,
     "identity.education": _EDUCATION,
     "identity.region_tier": _REGIONS,
     "identity.income_band": _INCOMES,
+    "identity.home_region": _HOME_REGIONS,
+    "identity.residence_region": _RESIDENCE_REGIONS,
 }
 _MARGINAL_FIELDS = {
     "identity.gender": _IDENTITY_PROPERTIES["gender"]["enum"],
     "identity.education": _EDUCATION,
     "identity.region_tier": _REGIONS,
     "identity.income_band": _INCOMES,
+    "identity.home_region": _HOME_REGIONS,
+    "identity.residence_region": _RESIDENCE_REGIONS,
     "psyche.motive_type": _MOTIVES,
 }
 _REROUTABLE_ENUM_FIELDS = set(_ENUM_FIELDS) | set(_MARGINAL_FIELDS)
@@ -138,6 +157,75 @@ def _new_persona_id(seed: int, frame_id: str, segment_id: str, k: int, used_ids:
             used_ids.add(persona_id)
             return persona_id
     raise ValueError("无法为人物骨架生成不重复的 persona_id")
+
+
+def _validate_region_shifts(region_shifts: list | None) -> list[dict]:
+    if region_shifts is None:
+        return []
+    if not isinstance(region_shifts, list):
+        raise ValueError("地域性格修正必须是列表")
+    valid_regions = set(_HOME_REGIONS)
+    validated = []
+    for index, shift in enumerate(region_shifts):
+        if not isinstance(shift, dict):
+            raise ValueError(f"地域性格修正第 {index + 1} 项必须是对象")
+        region = shift.get("region")
+        if not isinstance(region, str) or region not in valid_regions:
+            raise ValueError(f"地域性格修正包含未知地域：{region!r}")
+        field = shift.get("field")
+        if not isinstance(field, str) or field not in _REGION_SHIFT_FIELDS:
+            raise ValueError(f"地域性格修正包含未知字段：{field!r}")
+        delta = shift.get("delta")
+        if isinstance(delta, bool) or not isinstance(delta, (int, float)) or not math.isfinite(delta) or not -0.3 <= delta <= 0.3:
+            raise ValueError(f"地域性格修正 {field} 的 delta 必须在 [-0.3, 0.3] 内")
+        source = shift.get("source")
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError(f"地域性格修正 {region}.{field} 缺少出处 source")
+        validated.append({"region": region, "field": field, "delta": float(delta), "source": source})
+    return validated
+
+
+def _apply_region_shifts(skeleton: dict, region_shifts: list[dict]) -> None:
+    home_region = skeleton["identity"]["home_region"]
+    shifted_axis = False
+    for shift in region_shifts:
+        if shift["region"] != home_region:
+            continue
+        field = shift["field"]
+        value = _get_path(skeleton, field)
+        is_axis = field.startswith("psyche.mbti.axes.")
+        low, high = (-1.0, 1.0) if is_axis else (0.0, 1.0)
+        shifted = min(high, max(low, value + shift["delta"]))
+        if is_axis and shifted == 0:
+            shifted = math.copysign(0.01, value if value != 0 else 1.0)
+        _set_path(skeleton, field, shifted)
+        shifted_axis = shifted_axis or is_axis
+
+    if shifted_axis:
+        axes = _get_path(skeleton, "psyche.mbti.axes")
+        letters = [
+            positive if axes[axis] >= 0 else _AXIS_NEGATIVE[axis]
+            for axis, (_, positive) in _AXES.items()
+        ]
+        _set_path(skeleton, "psyche.mbti.type", "".join(letters))
+        _set_path(skeleton, "psyche.mbti.borderline_axes",
+                  [axis for axis in _AXES if abs(axes[axis]) < 0.2])
+
+
+def _resample_residence_region(skeleton: dict, segment: dict, frame: dict, seed: int, k: int) -> None:
+    path = "identity.residence_region"
+    if path in segment.get("filter", {}) or path in segment.get("marginals", {}):
+        return
+    segment_index = next(i for i, item in enumerate(frame["segments"]) if item["segment_id"] == segment["segment_id"])
+    if any(path in earlier.get("filter", {}) for earlier in frame["segments"][:segment_index]):
+        return
+    frame_id, segment_id = frame["frame_id"], segment["segment_id"]
+    if u01(seed, "skeleton", frame_id, segment_id, k, "identity.residence_region.same_as_home") < 0.7:
+        value = _get_path(skeleton, "identity.home_region")
+    else:
+        value = _rotated_value(_RESIDENCE_REGIONS, seed, frame_id, segment_id, path, k)
+    _set_path(skeleton, path, value)
+    skeleton["priors"][path] = "table"
 
 
 def _set_filter_fields(skeleton: dict, segment: dict, seed: int, frame_id: str, k: int, priors: dict) -> set[str]:
@@ -260,6 +348,13 @@ def _fill_skeleton(skeleton: dict, segment: dict, frame: dict, behavior_map: dic
                                      k, shortfall, path)
             _set_path(skeleton, path, value)
             skeleton["priors"][path] = "table"
+        elif path == "identity.residence_region":
+            if u01(seed, "skeleton", frame_id, segment_id, k, "identity.residence_region.same_as_home") < 0.7:
+                value = _get_path(skeleton, "identity.home_region")
+            else:
+                value = _rotated_value(values, seed, frame_id, segment_id, path, k)
+            _set_path(skeleton, path, value)
+            skeleton["priors"][path] = "table"
         else:
             _set_path(skeleton, path, _rotated_value(values, seed, frame_id, segment_id, path, k))
             skeleton["priors"][path] = "stratified_uniform"
@@ -343,8 +438,10 @@ def _fill_skeleton(skeleton: dict, segment: dict, frame: dict, behavior_map: dic
     return skeleton
 
 
-def draw_skeletons(frame: dict, personas: list[dict], behavior_map: dict, seed: int) -> list[dict]:
+def draw_skeletons(frame: dict, personas: list[dict], behavior_map: dict, seed: int,
+                   region_shifts: list | None = None) -> list[dict]:
     """按分群目标数补出缺口；分群和过滤字段沿用 sampling.segment_of 的首匹配规则。"""
+    region_shifts = _validate_region_shifts(region_shifts)
     frame_id = frame["frame_id"]
     segments = frame["segments"]
     segment_ids = [segment["segment_id"] for segment in segments]
@@ -384,9 +481,229 @@ def draw_skeletons(frame: dict, personas: list[dict], behavior_map: dict, seed: 
             }
             _fill_skeleton(skeleton, segment, frame, behavior_map, seed, k, shortfall, birth_bins, combos)
             if segment_of(skeleton, frame) != segment_id:
+                original_home_region = _get_path(skeleton, "identity.home_region")
                 skeleton = _reroute_skeleton(skeleton, segment, frame, seed, k)
+                if _get_path(skeleton, "identity.home_region") != original_home_region:
+                    _resample_residence_region(skeleton, segment, frame, seed, k)
+            if region_shifts:
+                _apply_region_shifts(skeleton, region_shifts)
             _set_path(skeleton, "persona_id", _new_persona_id(seed, frame_id, segment_id, k, used_ids))
             combo = (_get_path(skeleton, "psyche.mbti.type"), _get_path(skeleton, "psyche.motive_type"))
             combos[combo] += 1
             results.append(skeleton)
     return results
+
+
+def _merge_fixed(base, generated):
+    if isinstance(base, dict) and isinstance(generated, dict):
+        merged = deepcopy(base)
+        for key, value in generated.items():
+            merged[key] = _merge_fixed(merged[key], value) if key in merged else deepcopy(value)
+        return merged
+    if isinstance(base, list) and isinstance(generated, list):
+        merged = deepcopy(base)
+        seen = set()
+        for value in merged:
+            key = ("channel", value["channel"]) if isinstance(value, dict) and "channel" in value else (
+                "json", json.dumps(value, ensure_ascii=False, sort_keys=True))
+            seen.add(key)
+        for value in generated:
+            key = ("channel", value["channel"]) if isinstance(value, dict) and "channel" in value else (
+                "json", json.dumps(value, ensure_ascii=False, sort_keys=True))
+            if key not in seen:
+                merged.append(deepcopy(value))
+                seen.add(key)
+        return merged
+    return deepcopy(base)
+
+
+def _model_strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield str(key)
+            yield from _model_strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _model_strings(item)
+
+
+def _assemble_persona(skeleton: dict, generated: dict, *, model_id: str, prompt_hash: str,
+                      created_at: str, expression_intensity: float) -> dict:
+    occupation_fields = ("title", "industry_code", "job_family", "employment_type", "years")
+    occupation = {key: generated[key] for key in occupation_fields if key in generated}
+    identity = _merge_fixed(skeleton["identity"], {
+        "name": generated.get("name"),
+        "occupation": occupation,
+        "household": {
+            key: generated[key] for key in ("marital", "children", "living_with") if key in generated
+        },
+    })
+    expression = {"language_style": generated.get("language_style"),
+                  "expression_intensity": expression_intensity}
+    if generated.get("catchphrase") is not None:
+        expression["catchphrase"] = generated["catchphrase"]
+    psyche = _merge_fixed(skeleton["psyche"], {"expression": expression})
+    situation = {
+        key: generated[key] for key in
+        ("stakes", "constraints", "media_diet", "consumption", "knowledge_bounds") if key in generated
+    }
+    history = _merge_fixed(skeleton.get("history", {}), {"life_events": generated.get("life_events")})
+    return {
+        "persona_id": skeleton["persona_id"],
+        "version": 1,
+        "synthetic": True,
+        "disclaimer": "本人物为模拟构造，不代表任何真实个人。",
+        "status": "active",
+        "identity": identity,
+        "psyche": psyche,
+        "situation": _merge_fixed(skeleton["situation"], situation),
+        "history": history,
+        "provenance": {
+            "created_by": "factory",
+            "created_at": created_at,
+            "parent_version": None,
+            "archetype_id": None,
+            "generator": f"{model_id}/persona_factory@sha256:{prompt_hash}",
+            "change_note": "工厂生成，未做特质探针",
+            "priors": deepcopy(skeleton.get("priors", {})),
+        },
+    }
+
+
+def _persona_qa(card: dict, generated: dict, skeleton: dict, frame: dict, schema: dict,
+                library_names: set[str], channel_ids: set[str]) -> str | None:
+    for text in _model_strings(generated):
+        if _MBTI_LEAK.search(text) or "内向" in text or "外向" in text or "mbti" in text.lower():
+            return "模型输出包含 MBTI 类型或性格标签"
+    missing_household = {"marital", "children", "living_with"} - set(generated)
+    if missing_household:
+        return f"缺少家庭字段：{sorted(missing_household)}"
+    fixed_occupation = skeleton["identity"].get("occupation", {})
+    missing_occupation = {
+        field for field in ("industry_code", "job_family", "employment_type", "years")
+        if field not in fixed_occupation and field not in generated
+    }
+    if missing_occupation:
+        return f"缺少职业字段：{sorted(missing_occupation)}"
+    error = next(iter(Draft202012Validator(schema).iter_errors(card)), None)
+    if error is not None:
+        path = ".".join(map(str, error.absolute_path)) or "$"
+        return f"{path}: {error.message}"
+    if segment_of(card, frame) != skeleton["segment_id"]:
+        return f"分群路由不匹配：期望 {skeleton['segment_id']}"
+    if card["identity"]["name"] in library_names:
+        return "姓名已在人物库中"
+    events = card["history"]["life_events"]
+    if not 3 <= len(events) <= 5:
+        return "生活事件必须为 3 到 5 条"
+    if sum(event.get("core") is True for event in events) > 3:
+        return "核心生活事件不能超过 3 条"
+    media_diet = card["situation"]["media_diet"]
+    if any(item["channel"] not in channel_ids for item in media_diet):
+        return "媒体渠道包含 config/channels.yaml 之外的 ID"
+    if sum(item["share"] for item in media_diet) > 1.0001:
+        return "媒体渠道 share 合计超过 1"
+    return None
+
+
+def write_personas(skeletons: list[dict], gateway, *, library: list[dict], frame: dict,
+                   root: Path = ROOT, concurrency: int = 1) -> tuple[list[dict], list[dict]]:
+    if concurrency < 1:
+        raise ValueError("concurrency 必须至少为 1")
+    root = Path(root)
+    schema = json.loads((root / "schemas" / "persona.schema.json").read_text(encoding="utf-8"))
+    channel_ids = set(yaml.safe_load((root / "config" / "channels.yaml").read_text(encoding="utf-8"))["channels"])
+    region_labels = yaml.safe_load((root / "config" / "persona_text.yaml").read_text(encoding="utf-8"))["region"]
+    template_path = root / "prompts" / "persona_factory.md"
+    template = load_template(root, "persona_factory")
+    template_source = re.search(r"```text\n(.*?)\n```", template_path.read_text(encoding="utf-8"), re.S)
+    template_hash = hashlib.sha256(template_source.group(1).encode()).hexdigest()
+    model_id = gateway.backend.model_id
+    created_at = date.today().isoformat()
+    run_id = f"factory:{frame['frame_id']}"
+    library_names = {persona["identity"]["name"] for persona in library}
+    siblings = {}
+    for persona in sorted(library, key=lambda item: item.get("persona_id", "")):
+        segment_id = segment_of(persona, frame)
+        core_events = [event for event in persona.get("history", {}).get("life_events", []) if event.get("core")]
+        if segment_id is None or not core_events:
+            continue
+        siblings.setdefault(segment_id, []).append({
+            "name": persona["identity"]["name"],
+            "title": persona["identity"]["occupation"]["title"],
+            "life_event": core_events[0]["event"],
+        })
+    sibling_prompts = {
+        segment_id: json.dumps(items[:8], ensure_ascii=False, indent=2)
+        for segment_id, items in siblings.items()
+    }
+    skeletons = list(skeletons)
+
+    def write_one(skeleton: dict) -> dict:
+        prompt_skeleton = {
+            key: deepcopy(value) for key, value in skeleton.items()
+            if key not in {"persona_id", "frame_id", "priors"}
+        }
+        user = template.render(
+            skeleton_json=prompt_skeleton,
+            sibling_summaries=sibling_prompts.get(skeleton["segment_id"], "[]"),
+            channel_ids=sorted(channel_ids),
+            region_labels=region_labels,
+        )
+        seed = int(u01(0, skeleton["persona_id"]) * 2**32)
+        expression_seed = int(u01(seed, "expression", skeleton["persona_id"]) * 2**53)
+        expression_intensity = round(random.Random(expression_seed).betavariate(2, 2), 2)
+        reason = None
+        for attempt in range(2):
+            retry = f"\n\n你上一次的输出不合格：{reason}。请重新只输出一个 JSON 对象。" if attempt else ""
+            result = gateway.call(
+                system="你是写虚构人物档案的作者，只输出 JSON",
+                user=user + retry,
+                purpose="factory",
+                run_id=run_id,
+                ordinal=attempt,
+                seed=seed,
+                spec=None,
+            )
+            try:
+                generated = _first_json_object(result.text)
+            except json.JSONDecodeError as error:
+                reason = f"不是合法的 JSON：{error.msg}"
+                continue
+            card = _assemble_persona(
+                skeleton,
+                generated,
+                model_id=model_id,
+                prompt_hash=template_hash,
+                created_at=created_at,
+                expression_intensity=expression_intensity,
+            )
+            reason = _persona_qa(card, generated, skeleton, frame, schema, library_names, channel_ids)
+            if reason is None:
+                return {"card": card, "reason": None}
+        return {"card": None, "reason": reason}
+
+    results = in_order(write_one, skeletons, concurrency, on_fail=gateway.stop)
+    cards, failures = [], []
+    accepted_names = set(library_names)
+    for skeleton, result in zip(skeletons, results):
+        if result["card"] is None:
+            failures.append({
+                "persona_id": skeleton["persona_id"],
+                "segment_id": skeleton["segment_id"],
+                "reason": result["reason"],
+            })
+            continue
+        name = result["card"]["identity"]["name"]
+        if name in accepted_names:
+            failures.append({
+                "persona_id": skeleton["persona_id"],
+                "segment_id": skeleton["segment_id"],
+                "reason": "重名",
+            })
+            continue
+        accepted_names.add(name)
+        cards.append(result["card"])
+    return cards, failures
